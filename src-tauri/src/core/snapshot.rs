@@ -17,11 +17,15 @@ pub struct Snapshot {
     /// Foreground window's executable name, if known.
     pub foreground_exe: Option<String>,
     pub session_locked: bool,
-    pub remote_session: bool,
     pub notification_state: NotifState,
     pub on_ac: bool,
     pub battery_pct: u8,
+    // Sampled for conditions that arrive later: remote-session (B6), CPU load (B4), idle gating (M4).
+    #[allow(dead_code)]
+    pub remote_session: bool,
+    #[allow(dead_code)]
     pub cpu_pct: u8,
+    #[allow(dead_code)]
     pub idle_ms: u64,
 }
 

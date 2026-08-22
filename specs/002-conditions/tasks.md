@@ -24,20 +24,20 @@
 
 ## Phase 2 — The tick
 
-- [ ] **T006** `timing/ticker.rs`: `CreateWaitableTimerExW` + `SetWaitableTimerEx` (1000 ms, 200 ms
+- [x] **T006** `timing/ticker.rs`: `CreateWaitableTimerExW` + `SetWaitableTimerEx` (1000 ms, 200 ms
   tolerable delay); a loop calling a closure each tick. On non-Windows, a `std::thread::sleep`
   fallback so it compiles.
-- [ ] **T007** `core/engine.rs` (extend): hold profiles + active id; `tick(&Snapshot)` computes
+- [x] **T007** `core/engine.rs` (extend): hold profiles + active id; `tick(&Snapshot)` computes
   `desired_mode` and reconciles; scheduler thread samples cheap state each tick and process list
   every ~5 s. Reason string names the contributing rule(s).
-- [ ] **T008** `lib.rs`: spawn the scheduler thread (owns the reconciler); stop it cleanly on exit
+- [x] **T008** `lib.rs`: spawn the scheduler thread (owns the reconciler); stop it cleanly on exit
   (still release power on every path).
 
 ## Phase 3 — Platform monitors (behind traits)
 
-- [ ] **T009** `platform/mod.rs` + `mock.rs`: add `ProcessMonitor`, `SessionMonitor`,
+- [~] **T009** `platform/mod.rs` + `mock.rs`: add `ProcessMonitor`, `SessionMonitor`,
   `ForegroundMonitor` (+ presentation/notification state), `PowerSource`, `SystemLoad` traits + fakes.
-- [ ] **T010 [P]** `platform/windows/process.rs`: `CreateToolhelp32Snapshot` process names.
+- [x] **T010 [P]** `platform/windows/process.rs`: `CreateToolhelp32Snapshot` process names.
 - [ ] **T011 [P]** `platform/windows/foreground.rs`: `GetForegroundWindow` +
   `QueryFullProcessImageNameW` (`PROCESS_QUERY_LIMITED_INFORMATION`) + `SHQueryUserNotificationState`.
 - [ ] **T012 [P]** `platform/windows/session.rs`: `SM_REMOTESESSION` + `WM_WTSSESSION_CHANGE`

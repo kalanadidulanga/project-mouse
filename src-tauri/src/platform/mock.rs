@@ -6,7 +6,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use super::{PowerGuard, Result};
+use super::{PowerGuard, ProcessMonitor, Result};
 
 #[derive(Default)]
 struct Inner {
@@ -52,5 +52,30 @@ impl PowerGuard for NoopPowerGuard {
     }
     fn clear(&self) -> Result<()> {
         Ok(())
+    }
+}
+
+/// No-op process monitor for non-Windows builds.
+#[derive(Default)]
+pub struct NoopProcessMonitor;
+impl ProcessMonitor for NoopProcessMonitor {
+    fn running_process_names(&self) -> Vec<String> {
+        Vec::new()
+    }
+}
+
+/// Test double: returns whatever names the test sets.
+#[derive(Clone, Default)]
+pub struct MockProcessMonitor {
+    names: Arc<Mutex<Vec<String>>>,
+}
+impl MockProcessMonitor {
+    pub fn set(&self, names: Vec<String>) {
+        *self.names.lock().unwrap() = names;
+    }
+}
+impl ProcessMonitor for MockProcessMonitor {
+    fn running_process_names(&self) -> Vec<String> {
+        self.names.lock().unwrap().clone()
     }
 }

@@ -31,6 +31,12 @@ pub trait PowerGuard: Send + Sync {
     fn clear(&self) -> Result<()>;
 }
 
+/// Names of currently-running processes (executable file names). The caller cadence-limits how
+/// often it asks — enumeration is ~1-3 ms. FEATURES B1.
+pub trait ProcessMonitor: Send + Sync {
+    fn running_process_names(&self) -> Vec<String>;
+}
+
 // ponytail: autostart is handled by the cross-platform `tauri-plugin-autostart` (HKCU\Run on
 // Windows) at the shell layer, so it needs no trait in this OS-abstraction boundary.
 
@@ -47,6 +53,8 @@ pub struct Capabilities {
 pub struct Platform {
     /// `Arc` so the panic hook can hold a clone and release the request on an abort.
     pub power: Arc<dyn PowerGuard>,
+    /// `Arc` so the scheduler thread can sample without going through Tauri state.
+    pub processes: Arc<dyn ProcessMonitor>,
     #[allow(dead_code)] // consumed by the capability-aware UI in M3
     pub caps: Capabilities,
 }
@@ -57,6 +65,18 @@ pub fn trim_working_set() {
     windows::trim_working_set();
 }
 
+/// Local (weekday 0=Mon..6=Sun, minutes-of-day 0..1440) for schedule evaluation. (0,0) off Windows.
+pub fn local_time() -> (u8, u16) {
+    #[cfg(windows)]
+    {
+        windows::local_time()
+    }
+    #[cfg(not(windows))]
+    {
+        (0, 0)
+    }
+}
+
 /// The real platform for this build. Windows in M1; other OSes get no-op guards so the crate
 /// compiles cross-platform (the boundary is proven even while only Windows is implemented).
 pub fn real() -> Platform {
@@ -64,6 +84,7 @@ pub fn real() -> Platform {
     {
         Platform {
             power: Arc::new(windows::power::WindowsPowerGuard::new()),
+            processes: Arc::new(windows::process::WindowsProcessMonitor::new()),
             caps: Capabilities {
                 can_prevent_system_sleep: true,
                 can_prevent_display_sleep: true,
@@ -75,6 +96,7 @@ pub fn real() -> Platform {
     {
         Platform {
             power: Arc::new(mock::NoopPowerGuard::default()),
+            processes: Arc::new(mock::NoopProcessMonitor::default()),
             caps: Capabilities {
                 can_prevent_system_sleep: false,
                 can_prevent_display_sleep: false,

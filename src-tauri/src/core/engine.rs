@@ -1,34 +1,59 @@
-//! The single owner of the power state. In M1 there are no conditions, so the mode is set
-//! directly and reconciled on change — no tick loop needed yet (that arrives with conditions in
-//! M2). ponytail: reconcile-on-change keeps idle CPU at zero until M2 needs periodic evaluation.
+//! The single owner of the power state. The desired mode is the maximum of the **manual** override
+//! (set from the tray) and whatever the **active profile's** rules contribute for the current
+//! `Snapshot`. Reconciled each tick; the reconciler makes repeated identical ticks a no-op.
 
 use std::sync::Arc;
 
+use crate::core::evaluator::desired_mode;
 use crate::core::modes::WakeMode;
+use crate::core::rule::Profile;
+use crate::core::snapshot::Snapshot;
 use crate::platform::PowerGuard;
 use crate::power::PowerReconciler;
 
 pub struct Engine {
     reconciler: PowerReconciler,
-    mode: WakeMode,
+    manual: WakeMode,
+    profile: Profile,
+    last: WakeMode,
 }
 
 impl Engine {
     pub fn new(power: Arc<dyn PowerGuard>) -> Self {
-        Self { reconciler: PowerReconciler::new(power), mode: WakeMode::Off }
+        Self {
+            reconciler: PowerReconciler::new(power),
+            manual: WakeMode::Off,
+            profile: Profile::new("default", "Default"),
+            last: WakeMode::Off,
+        }
     }
 
+    pub fn set_manual(&mut self, mode: WakeMode) {
+        self.manual = mode;
+    }
+
+    pub fn manual(&self) -> WakeMode {
+        self.manual
+    }
+
+    pub fn set_profile(&mut self, profile: Profile) {
+        self.profile = profile;
+    }
+
+    /// The effective mode currently held (after the last tick).
     pub fn mode(&self) -> WakeMode {
-        self.mode
+        self.last
     }
 
-    pub fn set_mode(&mut self, mode: WakeMode) {
-        match self.reconciler.reconcile(mode) {
-            Ok(()) => {
-                self.mode = mode;
-                tracing::info!(?mode, "wake mode set");
-            }
-            Err(e) => tracing::error!("failed to set wake mode {mode:?}: {e}"),
+    /// Recompute desired = max(manual, rules) and reconcile. Idempotent across identical ticks.
+    pub fn tick(&mut self, snap: &Snapshot) {
+        let desired = self.manual.max(desired_mode(&self.profile, snap));
+        if desired != self.last {
+            tracing::info!(?desired, "reconciling wake mode");
+            self.last = desired;
+        }
+        if let Err(e) = self.reconciler.reconcile(desired) {
+            tracing::error!("reconcile failed: {e}");
         }
     }
 
@@ -36,6 +61,7 @@ impl Engine {
         if let Err(e) = self.reconciler.release() {
             tracing::error!("failed to release power request: {e}");
         }
-        self.mode = WakeMode::Off;
+        self.manual = WakeMode::Off;
+        self.last = WakeMode::Off;
     }
 }
