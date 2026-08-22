@@ -14,6 +14,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{Manager, Wry};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
+use crate::config::{model::Config, store};
 use crate::core::engine::Engine;
 use crate::core::modes::WakeMode;
 use crate::platform::PowerGuard;
@@ -21,6 +22,13 @@ use crate::platform::PowerGuard;
 /// Panic-hook backstop: `panic = "abort"` skips `Drop`, and `app.exit`/`process::exit` don't run
 /// destructors either — so the request is released explicitly on every path (FR-005).
 static PANIC_GUARD: OnceLock<Arc<dyn PowerGuard>> = OnceLock::new();
+
+/// Where to persist mode, and whether saving is allowed. Saving is disabled when the on-disk
+/// config was corrupt, so we never overwrite a file the user may want to recover (FEATURES D8).
+struct Persist {
+    path: PathBuf,
+    enabled: bool,
+}
 
 fn log_dir() -> PathBuf {
     // Portable spirit: logs beside the exe; fall back to temp if that dir isn't writable.
@@ -42,6 +50,13 @@ fn set_mode(app: &tauri::AppHandle, mode: WakeMode) {
     app.state::<Mutex<Engine>>().lock().unwrap().set_mode(mode);
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_tooltip(Some(tooltip_for(mode)));
+    }
+    let persist = app.state::<Mutex<Persist>>();
+    let p = persist.lock().unwrap();
+    if p.enabled {
+        if let Err(e) = store::save_atomic(&p.path, &Config::with_mode(mode)) {
+            tracing::error!("config save failed: {e}");
+        }
     }
 }
 
@@ -71,7 +86,21 @@ pub fn run() {
         eprintln!("panic: {info}");
     }));
 
-    let engine = Engine::new(power);
+    // Restore the last persisted mode. A corrupt config surfaces (logged) and disables saving
+    // so the file is preserved — never silently reset (FEATURES D8).
+    let cfg_path = store::resolve_config_path();
+    let (initial_mode, save_enabled) = match store::load(&cfg_path) {
+        Ok(c) => (c.mode, true),
+        Err(e) => {
+            tracing::error!(
+                "config load failed ({e}); starting Off and NOT overwriting the file so it can be recovered"
+            );
+            (WakeMode::Off, false)
+        }
+    };
+
+    let mut engine = Engine::new(power);
+    engine.set_mode(initial_mode); // restore last state (reconciles power at startup)
 
     tauri::Builder::default()
         // single-instance MUST be registered first (TAURI-V2 §6).
@@ -83,11 +112,13 @@ pub fn run() {
             Some(vec!["--minimized"]),
         ))
         .manage(Mutex::new(engine))
+        .manage(Mutex::new(Persist { path: cfg_path, enabled: save_enabled }))
         .setup(|app| {
             let icon = app.default_window_icon().cloned().unwrap();
             let h = app.handle().clone();
             let item = |id: &str, txt: &str| MenuItem::with_id(&h, id, txt, true, None::<&str>);
 
+            let restored = app.state::<Mutex<Engine>>().lock().unwrap().mode();
             let autostart_on = app.autolaunch().is_enabled().unwrap_or(false);
             let autostart_item = CheckMenuItem::with_id(
                 &h,
@@ -114,7 +145,7 @@ pub fn run() {
             let ai = autostart_item.clone();
             let _tray = TrayIconBuilder::with_id("main")
                 .icon(icon)
-                .tooltip(tooltip_for(WakeMode::Off))
+                .tooltip(tooltip_for(restored))
                 .menu(&menu)
                 .show_menu_on_left_click(true)
                 .on_menu_event(move |app, event| match event.id.as_ref() {

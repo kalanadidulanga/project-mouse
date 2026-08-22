@@ -77,14 +77,17 @@ the test suite** (constitution V).
 
 ## Phase 5 — User Story 3 (P3): trustworthy config & logs
 
-- [ ] **T020 [US3]** Test (`config/`): atomic write leaves only old-or-new complete file when killed
+- [x] **T020 [US3]** Test (`config/`): atomic write leaves only old-or-new complete file when killed
   mid-write; round-trip serialize/deserialize. MUST fail first.
-- [ ] **T021 [US3]** Test (`config/`): a corrupt `config.json` surfaces an error and keeps the file
+- [x] **T021 [US3]** Test (`config/`): a corrupt `config.json` surfaces an error and keeps the file
   — never resets to defaults; migration chain upgrades an older `schema_version`.
-- [ ] **T022 [US3]** `config/model.rs` + `store.rs` + `migrate.rs`: `schema_version`, atomic
+- [x] **T022 [US3]** `config/model.rs` + `store.rs` + `migrate.rs`: `schema_version`, atomic
   write (temp+fsync+`MoveFileEx` replace) debounced 500 ms, corrupt-file handling, migration chain.
   Make T020/T021 pass.
-- [ ] **T023 [US3]** Persist mode + settings through config; load on startup; wire debounced saves.
+- [x] **T023 [US3]** Persist mode through config; load + restore mode on startup; disable saving
+  when the on-disk file is corrupt (preserve it). **ponytail: saves are immediate, not debounced —
+  M1 mode changes are infrequent tray clicks; the 500 ms debounce lands in M3 when the rule-builder
+  UI fires changes on every keystroke.**
 - [ ] **CHECKPOINT US3**: SC-005 (kill mid-write; corrupt-file) verified.
 
 ## Phase 6 — Polish & exit criteria

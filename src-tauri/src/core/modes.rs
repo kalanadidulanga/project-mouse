@@ -30,6 +30,7 @@ impl WakeMode {
 
     /// Combine contributions by maximum. A weaker contribution can never lower a stronger
     /// one (ARCHITECTURE §5). Empty → Off.
+    #[allow(dead_code)] // exercised by tests now; the reconcile-from-many-rules caller lands in M2
     pub fn combine(contributions: impl IntoIterator<Item = WakeMode>) -> WakeMode {
         contributions.into_iter().max().unwrap_or(WakeMode::Off)
     }
