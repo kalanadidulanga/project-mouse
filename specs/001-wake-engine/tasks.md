@@ -92,11 +92,13 @@ the test suite** (constitution V).
 
 ## Phase 6 — Polish & exit criteria
 
-- [ ] **T024 [P]** `power/inspect`-free budget probe: measure **true private working set** (VMMap or
-  `QueryWorkingSetEx`) + apply `EmptyWorkingSet` after any teardown; record vs SC-007 (M0 caveat).
-- [ ] **T025 [P]** `quickstart.md`: build/run/verify M1, including the manual S0 test (SC-009).
-- [ ] **T026** Full exit-criteria pass (SC-001…SC-008) + `cargo test` green (SC-008: all engine
-  tests on `MockPlatform`, no Win32).
+- [~] **T024 [P]** `EmptyWorkingSet` trim applied ~3 s after startup (`platform::trim_working_set`).
+  **Precise private-working-set measurement (VMMap / `QueryWorkingSetEx`) + the CI budget gate move
+  to M5, where the ROADMAP puts them.**
+- [x] **T025 [P]** `quickstart.md`: build/run/verify M1, including the manual S0 test (SC-009).
+- [~] **T026** `cargo test` green (18/18 on `MockPlatform`, no Win32) ✅. Automatable SCs verified;
+  **live SC-002/003/004 (`powercfg`) + SC-006 (Process Monitor) + SC-009 (S0) need a human/hardware
+  — see quickstart.**
 
 ---
 

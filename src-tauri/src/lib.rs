@@ -162,6 +162,11 @@ pub fn run() {
                 .build(app)?;
 
             tracing::info!("project-mouse M1 started (tray only, no window)");
+            // Trim the startup working set back to the OS once things settle (ARCHITECTURE §3).
+            std::thread::spawn(|| {
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                platform::trim_working_set();
+            });
             Ok(())
         })
         .build(tauri::generate_context!())

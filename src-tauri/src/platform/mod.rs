@@ -51,6 +51,12 @@ pub struct Platform {
     pub caps: Capabilities,
 }
 
+/// Trim the process working set back to the OS (post-startup / post-teardown). No-op off Windows.
+pub fn trim_working_set() {
+    #[cfg(windows)]
+    windows::trim_working_set();
+}
+
 /// The real platform for this build. Windows in M1; other OSes get no-op guards so the crate
 /// compiles cross-platform (the boundary is proven even while only Windows is implemented).
 pub fn real() -> Platform {
