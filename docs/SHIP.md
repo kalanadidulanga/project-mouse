@@ -29,8 +29,9 @@ ROADMAP M5 + UPDATES.md into one runnable list. Items marked **[human]** cannot 
    - ⚠️ **[human] Back up `pm-updater.key` + its password offline, today.** Losing it means no
      installed user can ever be updated again. The password chosen at generation is a placeholder —
      regenerate with your own before public release if you like (`npm run tauri signer generate`).
-   - **[human] Set two GitHub repo secrets:** `TAURI_SIGNING_PRIVATE_KEY` = the **contents** of
-     `pm-updater.key`; `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` = its password.
+   - **[human] Set ONE GitHub repo secret:** `TAURI_SIGNING_PRIVATE_KEY` = the **contents** of
+     `pm-updater.key`. The key is password-less (`--ci`), and `release.yml` hardcodes an empty
+     password — so no password secret is needed (avoids the password-mismatch class of failure).
    - ✅ endpoint set to `github.com/kalanadidulanga/project-mouse` in `tauri.conf.json`.
 2. **[human] Publish the repo to GitHub** (GitHub Desktop → *Publish repository*, **public** — free
    Actions + free Releases CDN). Then tag `vX.Y.Z` → `release.yml` builds, signs, drafts a release
