@@ -92,6 +92,26 @@ pub fn trim_working_set() {
     windows::trim_working_set();
 }
 
+/// Run `on_tick` every ~`period_ms` until it returns `false`. Windows uses a coalescing waitable
+/// timer (idle CPU ~0, ARCHITECTURE §7); other OSes fall back to a sleep loop.
+pub fn run_tick_loop(period_ms: u32, tolerable_ms: u32, on_tick: impl FnMut() -> bool) {
+    #[cfg(windows)]
+    {
+        windows::run_tick_loop(period_ms, tolerable_ms, on_tick);
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = tolerable_ms;
+        let mut on_tick = on_tick;
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(period_ms as u64));
+            if !on_tick() {
+                break;
+            }
+        }
+    }
+}
+
 /// Local (weekday 0=Mon..6=Sun, minutes-of-day 0..1440) for schedule evaluation. (0,0) off Windows.
 pub fn local_time() -> (u8, u16) {
     #[cfg(windows)]

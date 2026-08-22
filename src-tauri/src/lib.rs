@@ -8,7 +8,6 @@ mod logging;
 mod platform;
 mod power;
 mod sampler;
-mod timing;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -422,7 +421,7 @@ pub fn run() {
             std::thread::spawn(move || {
                 let mut last_mode: Option<WakeMode> = None;
                 let mut last_blocked = false;
-                timing::ticker::run_loop(1000, 200, move || {
+                platform::run_tick_loop(1000, 200, move || {
                     if SHUTDOWN.load(Ordering::SeqCst) {
                         return false;
                     }
