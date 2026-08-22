@@ -27,6 +27,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
@@ -42,6 +43,15 @@
         "languages": ["English"]
       },
       "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQxRTkwMzc1QjE1QkI5MDgKUldRSXVWdXhkUVBwUWZQVDVFK0hVUWtqSURoTVkzNlBNUHIyRm8rWWsvTUlrNFlRMnRVbFozeHEK",
+      "endpoints": [
+        "https://github.com/kayd/project-mouse/releases/latest/download/latest.json"
+      ],
+      "windows": { "installMode": "passive" }
     }
   }
 }

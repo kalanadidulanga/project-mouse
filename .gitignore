@@ -25,6 +25,8 @@ Thumbs.db
 
 # Secrets — updater private key must NEVER be committed (see docs/UPDATES.md)
 *.key
+*.key.pub
+pm-updater.key*
 .env
 .env.*
 !.env.example

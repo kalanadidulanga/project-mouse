@@ -18,6 +18,7 @@ use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, Wry};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
+use tauri_plugin_updater::UpdaterExt;
 
 use crate::config::{model::Config, store};
 use crate::core::engine::Engine;
@@ -203,6 +204,51 @@ fn release_all(app: &tauri::AppHandle) {
     }
 }
 
+/// Check for an update (UPDATES.md §4). `auto` = a background check that only *hints* (never
+/// interrupts); a manual check downloads + installs. Windows force-exits during install, so
+/// `on_before_exit` releases the power request first.
+async fn check_and_install(app: tauri::AppHandle, auto: bool) {
+    let updater = match app
+        .updater_builder()
+        .on_before_exit(|| {
+            if let Some(g) = PANIC_GUARD.get() {
+                let _ = g.clear();
+            }
+        })
+        .build()
+    {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!("updater build failed: {e}");
+            return;
+        }
+    };
+    match updater.check().await {
+        Ok(Some(update)) => {
+            let v = update.version.clone();
+            tracing::info!("update available: {v}");
+            if auto {
+                if let Some(tray) = app.tray_by_id("main") {
+                    let _ = tray.set_tooltip(Some(format!(
+                        "project-mouse — update {v} available (tray → Check for updates)"
+                    )));
+                }
+                return;
+            }
+            match update.download_and_install(|_, _| {}, || {}).await {
+                Ok(_) => tracing::info!("update {v} installed; restarting"),
+                Err(e) => tracing::error!("update install failed: {e}"),
+            }
+        }
+        Ok(None) => {
+            if !auto {
+                tracing::info!("already up to date");
+            }
+        }
+        Err(e) => tracing::error!("update check failed: {e}"),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _log_guard = logging::init(&log_dir());
@@ -278,6 +324,7 @@ pub fn run() {
                 })
                 .build(),
         )
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(engine.clone())
         .manage(input_engine.clone())
         .manage(Mutex::new(Persist {
@@ -329,6 +376,7 @@ pub fn run() {
                     &item("keep_presenting", "Keep presenting")?,
                     &PredefinedMenuItem::separator(&h)?,
                     &autostart_item,
+                    &item("check_update", "Check for updates…")?,
                     &PredefinedMenuItem::separator(&h)?,
                     &item("quit", "Quit")?,
                 ],
@@ -355,6 +403,9 @@ pub fn run() {
                     "keep_running" => set_manual(app, WakeMode::KeepRunning),
                     "keep_presenting" => set_manual(app, WakeMode::KeepPresenting),
                     "autostart" => toggle_autostart(app, &ai),
+                    "check_update" => {
+                        tauri::async_runtime::spawn(check_and_install(app.clone(), false));
+                    }
                     "quit" => {
                         release_all(app);
                         app.exit(0);
@@ -415,6 +466,20 @@ pub fn run() {
             std::thread::spawn(|| {
                 std::thread::sleep(std::time::Duration::from_secs(3));
                 platform::trim_working_set();
+            });
+
+            // Auto update-check: 10 s after start, then every 6 h. Background checks only *hint*
+            // (tooltip) — never interrupt; the tray 'Check for updates…' item installs (UPDATES.md §6).
+            let up = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(10));
+                loop {
+                    if SHUTDOWN.load(Ordering::SeqCst) {
+                        break;
+                    }
+                    tauri::async_runtime::spawn(check_and_install(up.clone(), true));
+                    std::thread::sleep(std::time::Duration::from_secs(6 * 3600));
+                }
             });
             Ok(())
         })

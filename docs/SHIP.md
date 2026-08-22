@@ -21,17 +21,21 @@ ROADMAP M5 + UPDATES.md into one runnable list. Items marked **[human]** cannot 
 
 ## Release steps
 
-1. **[human, once] Generate the update keypair** and back the private key up offline in two places:
-   ```
-   npm run tauri signer generate -- -w %USERPROFILE%\.tauri\project-mouse.key
-   ```
-   - Public key → `tauri.conf.json` `plugins.updater.pubkey` (commit it).
-   - Private key → repo secret `TAURI_SIGNING_PRIVATE_KEY`; password → `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
-   - ⚠️ Losing this key means no existing user can ever be updated again. Back it up before shipping.
-2. **[human, once] Wire the updater** in `tauri.conf.json`: `bundle.createUpdaterArtifacts: true`,
-   `plugins.updater.endpoints` (own domain first, GitHub fallback), `windows.installMode: "passive"`.
-   Enable `tauri-plugin-updater` (split `download()`/`install()`, `on_before_exit` releases the power
-   request — UPDATES.md §4). Deferred until the key exists, since the pubkey must be baked in.
+1. **✅ DONE — update keypair generated + updater wired.** `src-tauri/pm-updater.key` (private,
+   gitignored) + `pm-updater.key.pub`; the public key is already in `tauri.conf.json`
+   `plugins.updater.pubkey`, `bundle.createUpdaterArtifacts: true`, and `tauri-plugin-updater` is
+   wired in `lib.rs` (auto-check every 6 h that only hints; tray **Check for updates…** installs;
+   `on_before_exit` releases the power request before Windows force-exits — UPDATES.md §4).
+   - ⚠️ **[human] Back up `pm-updater.key` + its password offline, today.** Losing it means no
+     installed user can ever be updated again. The password chosen at generation is a placeholder —
+     regenerate with your own before public release if you like (`npm run tauri signer generate`).
+   - **[human] Set two GitHub repo secrets:** `TAURI_SIGNING_PRIVATE_KEY` = the **contents** of
+     `pm-updater.key`; `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` = its password.
+   - **[human] Set the real endpoint:** edit `plugins.updater.endpoints` in `tauri.conf.json` — it
+     currently points at `github.com/kayd/project-mouse`; change `kayd/project-mouse` to your repo.
+2. **[human] Publish the repo to GitHub** (GitHub Desktop → *Publish repository*, **public** — free
+   Actions + free Releases CDN). Then tag `vX.Y.Z` → `release.yml` builds, signs, drafts a release
+   with the installer + `latest.json`. Review the draft → publish. Installed apps update from there.
 3. **[human, once] Authenticode / SmartScreen** — apply to [SignPath Foundation](https://signpath.org/)
    (free for OSS). The repo already meets its conditions: OSI license (MIT), MFA, reproducible build,
    published signing policy. Reputation accrues per file-hash over time — EV no longer buys a bypass.
