@@ -96,7 +96,7 @@ export default function App() {
             onTogglePause={togglePause}
           />
         )}
-        {page === "rules" && <RulesPage profile={state?.profile} />}
+        {page === "rules" && <RulesPage />}
         {page === "activity" && <ActivityPage logs={logs} />}
         {page === "settings" && <SettingsPage state={state} onMode={setMode} />}
       </main>
@@ -187,20 +187,101 @@ function ModeButtons({ manual, onMode }: { manual?: string; onMode: (m: string) 
   );
 }
 
-function RulesPage({ profile }: { profile?: string }) {
+type Rule = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  conditions: unknown[];
+  mode: string; // "KeepRunning" | "KeepPresenting"
+};
+type ProfileView = { id: string; name: string; rules: Rule[] };
+
+function newId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `rule-${Date.now()}`;
+  }
+}
+
+function RulesPage() {
+  const [profile, setProfile] = useState<ProfileView | null>(null);
+  const [proc, setProc] = useState("");
+  const [mode, setMode] = useState("KeepRunning");
+
+  const load = useCallback(() => {
+    invoke<ProfileView>("get_rules").then(setProfile).catch(() => {});
+  }, []);
+  useEffect(load, [load]);
+
+  const add = () => {
+    const name = proc.trim();
+    if (!name) return;
+    const rule: Rule = {
+      id: newId(),
+      name: `Keep ${mode === "KeepPresenting" ? "presenting" : "running"} while ${name} runs`,
+      enabled: false, // disabled by default (UI-UX §3)
+      conditions: [{ ProcessRunning: [name] }],
+      mode,
+    };
+    invoke("upsert_rule", { rule }).then(() => {
+      setProc("");
+      load();
+    });
+  };
+  const toggle = (id: string, enabled: boolean) =>
+    invoke("set_rule_enabled", { id, enabled }).then(load);
+  const remove = (id: string) => invoke("delete_rule", { id }).then(load);
+
   return (
     <>
       <h1>Rules</h1>
       <p className="note">
-        Active profile: <strong>{profile ?? "—"}</strong>.
+        A rule keeps the machine awake while its condition holds. New rules start disabled — turn
+        one on when you want it.
       </p>
-      <p className="note">
-        The plain-language rule builder arrives next. For now, bind the wake lock to a process from
-        the command line, for example:
-      </p>
-      <p className="note">
-        <span className="mono-hint">project-mouse --while-process msbuild.exe</span>
-      </p>
+
+      {profile && profile.rules.length > 0 ? (
+        profile.rules.map((r) => (
+          <div className="row" key={r.id}>
+            <span className="k" style={{ color: "var(--text)" }}>{r.name}</span>
+            <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <label style={{ fontSize: 12, color: "var(--text-2)" }}>
+                <input
+                  type="checkbox"
+                  checked={r.enabled}
+                  onChange={(e) => toggle(r.id, e.target.checked)}
+                />{" "}
+                on
+              </label>
+              <button className="btn" onClick={() => remove(r.id)}>Delete</button>
+            </span>
+          </div>
+        ))
+      ) : (
+        <p className="note">No rules yet.</p>
+      )}
+
+      <div style={{ marginTop: 20, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+        <p className="note">Add a rule: keep awake while a process runs.</p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <select className="btn" value={mode} onChange={(e) => setMode(e.target.value)}>
+            <option value="KeepRunning">Keep running</option>
+            <option value="KeepPresenting">Keep presenting</option>
+          </select>
+          <span className="note">while</span>
+          <input
+            className="btn"
+            style={{ minWidth: 160 }}
+            placeholder="process.exe"
+            value={proc}
+            onChange={(e) => setProc(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && add()}
+          />
+          <span className="note">is running</span>
+          <button className="btn primary" onClick={add}>Add rule</button>
+        </div>
+      </div>
     </>
   );
 }

@@ -107,12 +107,30 @@ pub(crate) fn set_manual(app: &tauri::AppHandle, mode: WakeMode) {
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_tooltip(Some(tooltip_for(mode)));
     }
-    let persist = app.state::<Mutex<Persist>>();
-    let p = persist.lock().unwrap();
-    if p.enabled {
-        if let Err(e) = store::save_atomic(&p.path, &Config::with_mode(mode)) {
-            tracing::error!("config save failed: {e}");
-        }
+    persist_current(app);
+}
+
+/// Persist the whole current config — manual mode + the active profile's rules — atomically.
+/// Disabled when the on-disk config was corrupt, so we never overwrite a recoverable file.
+pub(crate) fn persist_current(app: &tauri::AppHandle) {
+    let engine = app.state::<SharedEngine>();
+    let (mode, profile) = {
+        let e = engine.lock().unwrap();
+        (e.manual(), e.profile().clone())
+    };
+    let p = app.state::<Mutex<Persist>>();
+    let p = p.lock().unwrap();
+    if !p.enabled {
+        return;
+    }
+    let cfg = Config {
+        mode,
+        active_profile: profile.id.clone(),
+        profiles: vec![profile],
+        ..Config::default()
+    };
+    if let Err(e) = store::save_atomic(&p.path, &cfg) {
+        tracing::error!("config save failed: {e}");
     }
 }
 
@@ -149,20 +167,24 @@ pub fn run() {
         eprintln!("panic: {info}");
     }));
 
-    // Restore last manual mode; a corrupt config disables saving so it is preserved (FEATURES D8).
+    // Restore last manual mode + active profile; a corrupt config disables saving so it is
+    // preserved (FEATURES D8).
     let cfg_path = store::resolve_config_path();
-    let (initial_mode, save_enabled) = match store::load(&cfg_path) {
-        Ok(c) => (c.mode, true),
+    let (initial_mode, initial_profile, save_enabled) = match store::load(&cfg_path) {
+        Ok(c) => (c.mode, c.active().cloned(), true),
         Err(e) => {
             tracing::error!("config load failed ({e}); starting Off and preserving the file");
-            (WakeMode::Off, false)
+            (WakeMode::Off, None, false)
         }
     };
 
     let mut engine = Engine::new(power);
     engine.set_manual(initial_mode);
+    if let Some(p) = initial_profile {
+        engine.set_profile(p);
+    }
     if let Some(profile) = profile_from_args() {
-        tracing::info!("loaded CLI profile from --while-process");
+        tracing::info!("CLI --while-process overrides the active profile for this session");
         engine.set_profile(profile);
     }
     let engine: SharedEngine = Arc::new(Mutex::new(engine));
@@ -207,6 +229,10 @@ pub fn run() {
             ipc::resume_all,
             ipc::get_diagnostics,
             ipc::get_logs,
+            ipc::get_rules,
+            ipc::upsert_rule,
+            ipc::delete_rule,
+            ipc::set_rule_enabled,
         ])
         .on_window_event(|window, event| {
             // Destroy the webview on close — never hide (ARCHITECTURE §3). This returns the

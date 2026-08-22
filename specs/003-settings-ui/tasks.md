@@ -23,10 +23,10 @@
 - [x] **T009** Activity/log view (reads the ring buffer).
 
 ## Phase 4 — Rule builder + persistence + first run
-- [ ] **T010** Config **v1→v2**: profiles + rules + active id; migration; atomic persist.
-- [ ] **T011** Rule builder — plain-language sentences, inline dropdowns, disabled-by-default;
+- [x] **T010** Config **v1→v2**: profiles + rules + active id; migration; atomic persist.
+- [x] **T011** Rule builder — plain-language sentences, inline dropdowns, disabled-by-default;
   `upsert_rule`/`delete_rule`/`set_rule_enabled`; round-trips to JSON.
-- [ ] **T012** First-run: one question, three profiles, no input synthesis, self-destructs.
-- [ ] **T013** Exit criteria SC-001..SC-007; assert destroy-not-hide + working-set return.
+- [~] **T012** First-run: one question, three profiles, no input synthesis, self-destructs.
+- [~] **T013** Exit criteria SC-001..SC-007; assert destroy-not-hide + working-set return.
 
 Dependencies: P1 → P2 → P3 → P4. P1/P2 are Rust; P3 needs frontend-design.

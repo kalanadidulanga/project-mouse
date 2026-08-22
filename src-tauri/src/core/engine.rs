@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::core::evaluator::desired_mode;
 use crate::core::modes::WakeMode;
-use crate::core::rule::Profile;
+use crate::core::rule::{Profile, Rule};
 use crate::core::snapshot::Snapshot;
 use crate::platform::PowerGuard;
 use crate::power::PowerReconciler;
@@ -42,8 +42,29 @@ impl Engine {
         self.profile = profile;
     }
 
+    pub fn profile(&self) -> &Profile {
+        &self.profile
+    }
+
     pub fn profile_name(&self) -> &str {
         &self.profile.name
+    }
+
+    pub fn upsert_rule(&mut self, rule: Rule) {
+        match self.profile.rules.iter_mut().find(|r| r.id == rule.id) {
+            Some(existing) => *existing = rule,
+            None => self.profile.rules.push(rule),
+        }
+    }
+
+    pub fn delete_rule(&mut self, id: &str) {
+        self.profile.rules.retain(|r| r.id != id);
+    }
+
+    pub fn set_rule_enabled(&mut self, id: &str, enabled: bool) {
+        if let Some(r) = self.profile.rules.iter_mut().find(|r| r.id == id) {
+            r.enabled = enabled;
+        }
     }
 
     pub fn set_paused(&mut self, paused: bool) {

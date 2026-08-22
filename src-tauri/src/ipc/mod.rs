@@ -8,6 +8,7 @@ use tauri::{AppHandle, State};
 
 use crate::core::engine::Engine;
 use crate::core::modes::WakeMode;
+use crate::core::rule::{Profile, Rule};
 use crate::{logging, platform};
 
 type SharedEngine = Arc<Mutex<Engine>>;
@@ -95,4 +96,27 @@ pub fn get_diagnostics(engine: State<'_, SharedEngine>) -> Diagnostics {
 #[tauri::command]
 pub fn get_logs(limit: usize) -> Vec<String> {
     logging::tail(limit.clamp(1, 500))
+}
+
+#[tauri::command]
+pub fn get_rules(engine: State<'_, SharedEngine>) -> Profile {
+    engine.lock().unwrap().profile().clone()
+}
+
+#[tauri::command]
+pub fn upsert_rule(app: AppHandle, engine: State<'_, SharedEngine>, rule: Rule) {
+    engine.lock().unwrap().upsert_rule(rule);
+    crate::persist_current(&app);
+}
+
+#[tauri::command]
+pub fn delete_rule(app: AppHandle, engine: State<'_, SharedEngine>, id: String) {
+    engine.lock().unwrap().delete_rule(&id);
+    crate::persist_current(&app);
+}
+
+#[tauri::command]
+pub fn set_rule_enabled(app: AppHandle, engine: State<'_, SharedEngine>, id: String, enabled: bool) {
+    engine.lock().unwrap().set_rule_enabled(&id, enabled);
+    crate::persist_current(&app);
 }

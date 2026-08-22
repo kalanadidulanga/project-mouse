@@ -14,11 +14,13 @@ pub fn migrate(mut value: serde_json::Value) -> Result<Config, String> {
         .unwrap_or(0) as u32;
 
     match version {
-        0 => {
+        // v0 (legacy/unversioned) and v1 (bare `mode`) both upgrade to the current schema by
+        // stamping the version; `#[serde(default)]` fills the fields added since (profiles, active).
+        0 | 1 => {
             value["schema_version"] = serde_json::json!(CURRENT_SCHEMA_VERSION);
-            serde_json::from_value(value).map_err(|e| format!("migrate v0→v1: {e}"))
+            serde_json::from_value(value).map_err(|e| format!("migrate v{version}→v{CURRENT_SCHEMA_VERSION}: {e}"))
         }
-        1 => serde_json::from_value(value).map_err(|e| format!("parse v1: {e}")),
+        2 => serde_json::from_value(value).map_err(|e| format!("parse v2: {e}")),
         v => Err(format!(
             "config schema v{v} is newer than supported v{CURRENT_SCHEMA_VERSION}; refusing to load"
         )),
@@ -39,8 +41,18 @@ mod tests {
     }
 
     #[test]
-    fn loads_current_version() {
+    fn migrates_v1_to_v2() {
+        // A v1 file has a bare `mode` and no profiles.
         let v = serde_json::json!({ "schema_version": 1, "mode": "KeepPresenting" });
+        let cfg = migrate(v).unwrap();
+        assert_eq!(cfg.schema_version, 2);
+        assert_eq!(cfg.mode, WakeMode::KeepPresenting);
+        assert!(cfg.profiles.is_empty());
+    }
+
+    #[test]
+    fn loads_current_version() {
+        let v = serde_json::json!({ "schema_version": 2, "mode": "KeepPresenting", "profiles": [], "active_profile": "" });
         assert_eq!(migrate(v).unwrap().mode, WakeMode::KeepPresenting);
     }
 
