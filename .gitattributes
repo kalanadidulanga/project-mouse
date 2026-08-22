@@ -1,0 +1,12 @@
+# Normalize line endings; let git handle checkout per-platform.
+* text=auto
+
+# Windows scripts stay CRLF; shell scripts stay LF.
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.sh  text eol=lf
+
+# Treat these as binary (no eol munging, no diff noise).
+*.png binary
+*.ico binary
+*.icns binary
