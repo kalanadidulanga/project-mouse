@@ -328,6 +328,16 @@ function SettingsPage({
   onToggleInput: () => void;
 }) {
   const inputOn = diag?.input_enabled ?? false;
+  const [mmPath, setMmPath] = useState("");
+  const [mmReport, setMmReport] = useState<string[] | null>(null);
+  const [mmError, setMmError] = useState<string | null>(null);
+  const importMM = () => {
+    setMmError(null);
+    setMmReport(null);
+    invoke<string[]>("import_move_mouse", { path: mmPath })
+      .then(setMmReport)
+      .catch((e) => setMmError(String(e)));
+  };
   return (
     <>
       <h1>Settings</h1>
@@ -356,6 +366,26 @@ function SettingsPage({
           detectable and may be against an acceptable-use policy. It stands down the moment you
           return, and stops the instant you turn this off.
         </p>
+      </div>
+
+      <div style={{ marginTop: 24, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+        <strong style={{ fontSize: 13 }}>Import from Move Mouse</strong>
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <input
+            className="btn"
+            style={{ flex: 1 }}
+            placeholder="path to Settings.xml"
+            value={mmPath}
+            onChange={(e) => setMmPath(e.target.value)}
+          />
+          <button className="btn primary" onClick={importMM}>Import</button>
+        </div>
+        {mmError && <p className="note" style={{ color: "var(--error)" }}>{mmError}</p>}
+        {mmReport && (
+          <ul className="note" style={{ marginTop: 8, paddingLeft: 18 }}>
+            {mmReport.map((l, i) => <li key={i} style={{ marginBottom: 4 }}>{l}</li>)}
+          </ul>
+        )}
       </div>
 
       <p className="note" style={{ marginTop: 20 }}>

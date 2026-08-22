@@ -113,6 +113,22 @@ pub fn set_input_enabled(app: AppHandle, input: State<'_, SharedInput>, enabled:
     crate::persist_current(&app);
 }
 
+/// Import a Move Mouse `Settings.xml` → the active profile (power-only default). Returns the report.
+#[tauri::command]
+pub fn import_move_mouse(
+    app: AppHandle,
+    engine: State<'_, SharedEngine>,
+    input: State<'_, SharedInput>,
+    path: String,
+) -> Result<Vec<String>, String> {
+    let xml = std::fs::read_to_string(&path).map_err(|e| format!("cannot read {path}: {e}"))?;
+    let imported = crate::config::import_movemouse::import(&xml)?;
+    engine.lock().unwrap().set_profile(imported.profile);
+    input.lock().unwrap().set_enabled(imported.input_enabled);
+    crate::persist_current(&app);
+    Ok(imported.report)
+}
+
 #[tauri::command]
 pub fn get_logs(limit: usize) -> Vec<String> {
     logging::tail(limit.clamp(1, 500))

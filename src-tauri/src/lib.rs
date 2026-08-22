@@ -296,6 +296,7 @@ pub fn run() {
             ipc::delete_rule,
             ipc::set_rule_enabled,
             ipc::set_input_enabled,
+            ipc::import_move_mouse,
         ])
         .on_window_event(|window, event| {
             // Destroy the webview on close — never hide (ARCHITECTURE §3). This returns the
