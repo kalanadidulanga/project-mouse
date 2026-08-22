@@ -1,5 +1,6 @@
 //! project-mouse — M1 wake engine. Tray-only, no window, power inhibition by default.
 
+mod config;
 mod core;
 mod logging;
 mod platform;
@@ -8,9 +9,10 @@ mod power;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::Manager;
+use tauri::{Manager, Wry};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 use crate::core::engine::Engine;
 use crate::core::modes::WakeMode;
@@ -43,6 +45,18 @@ fn set_mode(app: &tauri::AppHandle, mode: WakeMode) {
     }
 }
 
+fn toggle_autostart(app: &tauri::AppHandle, item: &CheckMenuItem<Wry>) {
+    let mgr = app.autolaunch();
+    let now = mgr.is_enabled().unwrap_or(false);
+    match if now { mgr.disable() } else { mgr.enable() } {
+        Ok(()) => {
+            let _ = item.set_checked(!now);
+            tracing::info!(enabled = !now, "autostart toggled");
+        }
+        Err(e) => tracing::error!("autostart toggle failed: {e}"),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _log_guard = logging::init(&log_dir()); // keep alive for the whole process
@@ -60,11 +74,30 @@ pub fn run() {
     let engine = Engine::new(power);
 
     tauri::Builder::default()
+        // single-instance MUST be registered first (TAURI-V2 §6).
+        .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {
+            tracing::info!("second instance attempted; ignoring (single instance)");
+        }))
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec!["--minimized"]),
+        ))
         .manage(Mutex::new(engine))
         .setup(|app| {
             let icon = app.default_window_icon().cloned().unwrap();
             let h = app.handle().clone();
             let item = |id: &str, txt: &str| MenuItem::with_id(&h, id, txt, true, None::<&str>);
+
+            let autostart_on = app.autolaunch().is_enabled().unwrap_or(false);
+            let autostart_item = CheckMenuItem::with_id(
+                &h,
+                "autostart",
+                "Start with Windows",
+                true,
+                autostart_on,
+                None::<&str>,
+            )?;
+
             let menu = Menu::with_items(
                 &h,
                 &[
@@ -72,19 +105,23 @@ pub fn run() {
                     &item("keep_running", "Keep running")?,
                     &item("keep_presenting", "Keep presenting")?,
                     &PredefinedMenuItem::separator(&h)?,
+                    &autostart_item,
+                    &PredefinedMenuItem::separator(&h)?,
                     &item("quit", "Quit")?,
                 ],
             )?;
 
+            let ai = autostart_item.clone();
             let _tray = TrayIconBuilder::with_id("main")
                 .icon(icon)
                 .tooltip(tooltip_for(WakeMode::Off))
                 .menu(&menu)
                 .show_menu_on_left_click(true)
-                .on_menu_event(|app, event| match event.id.as_ref() {
+                .on_menu_event(move |app, event| match event.id.as_ref() {
                     "off" => set_mode(app, WakeMode::Off),
                     "keep_running" => set_mode(app, WakeMode::KeepRunning),
                     "keep_presenting" => set_mode(app, WakeMode::KeepPresenting),
+                    "autostart" => toggle_autostart(app, &ai),
                     "quit" => {
                         app.state::<Mutex<Engine>>().lock().unwrap().release();
                         app.exit(0);

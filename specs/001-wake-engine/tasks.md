@@ -63,13 +63,15 @@ the test suite** (constitution V).
 
 ## Phase 4 — User Story 2 (P2): portable, single-instance, autostart
 
-- [ ] **T016 [US2]** Test (`config/`): portable-path detection — config beside exe when writable,
+- [x] **T016 [US2]** Test (`config/`): portable-path detection — config beside exe when writable,
   else `%APPDATA%\project-mouse`. MUST fail first.
-- [ ] **T017 [US2]** `config/store.rs`: implement portable-path detection (make T016 pass).
-- [ ] **T018 [US2]** `tauri-plugin-single-instance` wired first in the builder; second launch
+- [x] **T017 [US2]** `config/store.rs`: implement portable-path detection (make T016 pass).
+- [x] **T018 [US2]** `tauri-plugin-single-instance` wired first in the builder; second launch
   signals the first (flash tray) and exits.
-- [ ] **T019 [US2]** `platform/windows/autostart.rs`: `HKCU\...\Run` via `tauri-plugin-autostart`
-  (or Registry), `--minimized`; idempotent enable/disable; tray menu toggle + persisted setting.
+- [x] **T019 [US2]** Autostart via `tauri-plugin-autostart` (`HKCU\...\Run`, `--minimized`),
+  toggled from a tray `CheckMenuItem`; the Run key is the persistence. **ponytail: used the
+  cross-platform plugin instead of a hand-rolled `platform/windows/autostart.rs` + `AutoStart`
+  trait — the trait was removed as redundant.**
 - [ ] **CHECKPOINT US2**: SC-006 with Process Monitor (zero registry writes until autostart on;
   runs from USB; no admin).
 

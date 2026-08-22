@@ -31,14 +31,12 @@ pub trait PowerGuard: Send + Sync {
     fn clear(&self) -> Result<()>;
 }
 
-/// Optional launch-at-login. FEATURES D4.
-pub trait AutoStart: Send + Sync {
-    fn is_enabled(&self) -> Result<bool>;
-    fn set_enabled(&self, on: bool) -> Result<()>;
-}
+// ponytail: autostart is handled by the cross-platform `tauri-plugin-autostart` (HKCU\Run on
+// Windows) at the shell layer, so it needs no trait in this OS-abstraction boundary.
 
 /// What the current OS can actually do — the UI asks rather than assumes (CROSS-PLATFORM §2).
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)] // consumed by the capability-aware UI in M3
 pub struct Capabilities {
     pub can_prevent_system_sleep: bool,
     pub can_prevent_display_sleep: bool,
@@ -49,7 +47,7 @@ pub struct Capabilities {
 pub struct Platform {
     /// `Arc` so the panic hook can hold a clone and release the request on an abort.
     pub power: Arc<dyn PowerGuard>,
-    pub autostart: Box<dyn AutoStart>,
+    #[allow(dead_code)] // consumed by the capability-aware UI in M3
     pub caps: Capabilities,
 }
 
@@ -60,12 +58,10 @@ pub fn real() -> Platform {
     {
         Platform {
             power: Arc::new(windows::power::WindowsPowerGuard::new()),
-            // ponytail: autostart is Phase 4 (FEATURES D4) — Noop until then, so caps says so.
-            autostart: Box::new(mock::NoopAutoStart::default()),
             caps: Capabilities {
                 can_prevent_system_sleep: true,
                 can_prevent_display_sleep: true,
-                can_autostart: false,
+                can_autostart: true,
             },
         }
     }
@@ -73,7 +69,6 @@ pub fn real() -> Platform {
     {
         Platform {
             power: Arc::new(mock::NoopPowerGuard::default()),
-            autostart: Box::new(mock::NoopAutoStart::default()),
             caps: Capabilities {
                 can_prevent_system_sleep: false,
                 can_prevent_display_sleep: false,

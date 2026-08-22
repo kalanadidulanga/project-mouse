@@ -6,7 +6,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use super::{AutoStart, PowerGuard, Result};
+use super::{PowerGuard, Result};
 
 #[derive(Default)]
 struct Inner {
@@ -51,18 +51,6 @@ impl PowerGuard for NoopPowerGuard {
         Ok(())
     }
     fn clear(&self) -> Result<()> {
-        Ok(())
-    }
-}
-
-/// No-op autostart for non-Windows builds and tests.
-#[derive(Default)]
-pub struct NoopAutoStart;
-impl AutoStart for NoopAutoStart {
-    fn is_enabled(&self) -> Result<bool> {
-        Ok(false)
-    }
-    fn set_enabled(&self, _on: bool) -> Result<()> {
         Ok(())
     }
 }
