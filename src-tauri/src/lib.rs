@@ -86,6 +86,44 @@ fn profile_from_args() -> Option<Profile> {
     Some(p)
 }
 
+fn mode_from_cli(s: &str) -> Option<WakeMode> {
+    match s.to_ascii_lowercase().as_str() {
+        "off" => Some(WakeMode::Off),
+        "running" | "keep_running" => Some(WakeMode::KeepRunning),
+        "presenting" | "keep_presenting" => Some(WakeMode::KeepPresenting),
+        _ => None,
+    }
+}
+
+/// `--keep running|presenting|off` from argv — the startup initial mode (D10).
+fn cli_keep_mode() -> Option<WakeMode> {
+    let mut args = std::env::args();
+    while let Some(a) = args.next() {
+        if a == "--keep" {
+            return args.next().and_then(|v| mode_from_cli(&v));
+        }
+    }
+    None
+}
+
+/// Apply flags a *second* invocation forwarded to the running instance (single-instance), so
+/// `project-mouse --keep presenting` / `--release` / `--show` controls the running app (D10).
+fn apply_forwarded(app: &tauri::AppHandle, argv: &[String]) {
+    let mut it = argv.iter();
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "--show" => open_window(app),
+            "--release" => set_manual(app, WakeMode::Off),
+            "--keep" => {
+                if let Some(m) = it.next().and_then(|v| mode_from_cli(v)) {
+                    set_manual(app, m);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Create the settings window on demand (reusing the declared `create:false` config), or focus it
 /// if it already exists. Destroyed — not hidden — on close (ARCHITECTURE §3).
 fn open_window(app: &tauri::AppHandle) {
@@ -192,7 +230,8 @@ pub fn run() {
     };
 
     let mut engine = Engine::new(power);
-    engine.set_manual(initial_mode);
+    // --keep on the command line overrides the persisted mode for this launch (D10).
+    engine.set_manual(cli_keep_mode().unwrap_or(initial_mode));
     if let Some(p) = initial_profile {
         engine.set_profile(p);
     }
@@ -213,8 +252,9 @@ pub fn run() {
     ));
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {
-            tracing::info!("second instance attempted; ignoring (single instance)");
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            tracing::info!("second instance forwarded args: {argv:?}");
+            apply_forwarded(app, &argv);
         }))
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
