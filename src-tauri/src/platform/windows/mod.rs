@@ -1,5 +1,7 @@
 //! Windows implementations of the platform traits.
 
+pub mod foreground;
+pub mod load;
 pub mod power;
 pub mod process;
 

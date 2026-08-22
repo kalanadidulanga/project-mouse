@@ -1,24 +1,31 @@
 //! Builds a `Snapshot` from the OS each tick, cadence-limiting the (relatively) expensive process
-//! enumeration to ~5 s while cheap fields refresh every tick. Other monitors (session, foreground,
-//! battery, CPU) fill in as those platform backends land; unset fields keep their `Snapshot`
-//! defaults for now.
+//! enumeration to ~5 s while cheap fields refresh every tick.
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use crate::core::rule::NotifState;
 use crate::core::snapshot::Snapshot;
-use crate::platform::{self, ProcessMonitor};
+use crate::platform::{self, ForegroundMonitor, PowerSource, ProcessMonitor};
 
 pub struct Sampler {
     processes: Arc<dyn ProcessMonitor>,
+    foreground: Arc<dyn ForegroundMonitor>,
+    power_source: Arc<dyn PowerSource>,
     proc_cache: Mutex<(Option<Instant>, Vec<String>)>,
     proc_interval: Duration,
 }
 
 impl Sampler {
-    pub fn new(processes: Arc<dyn ProcessMonitor>) -> Self {
+    pub fn new(
+        processes: Arc<dyn ProcessMonitor>,
+        foreground: Arc<dyn ForegroundMonitor>,
+        power_source: Arc<dyn PowerSource>,
+    ) -> Self {
         Self {
             processes,
+            foreground,
+            power_source,
             proc_cache: Mutex::new((None, Vec::new())),
             proc_interval: Duration::from_secs(5),
         }
@@ -40,11 +47,22 @@ impl Sampler {
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
+        let notification_state = self.foreground.notification_state();
+        let foreground_exe = self.foreground.foreground_app();
+        let (on_ac, battery_pct) = self.power_source.power_status();
         Snapshot {
             epoch_secs,
             weekday,
             minutes,
             running_processes: self.process_names(),
+            foreground_exe,
+            // ponytail: derive lock from the notification state's NotPresent (the docs' cheapest
+            // reliable "locked or screensaver" signal); precise WTS lock/unlock events are a later
+            // refinement (B6).
+            session_locked: notification_state == NotifState::NotPresent,
+            notification_state,
+            on_ac,
+            battery_pct,
             ..Default::default()
         }
     }

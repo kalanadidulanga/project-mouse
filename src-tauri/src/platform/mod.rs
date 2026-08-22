@@ -8,6 +8,8 @@ pub mod windows;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::core::rule::NotifState;
+
 pub type Result<T> = std::result::Result<T, PlatformError>;
 
 #[derive(Debug)]
@@ -37,6 +39,19 @@ pub trait ProcessMonitor: Send + Sync {
     fn running_process_names(&self) -> Vec<String>;
 }
 
+/// Foreground app name + the single-call notification state (presentation/fullscreen/game/locked).
+/// FEATURES B7, B10.
+pub trait ForegroundMonitor: Send + Sync {
+    fn foreground_app(&self) -> Option<String>;
+    fn notification_state(&self) -> NotifState;
+}
+
+/// AC line status + battery percent. FEATURES B5.
+pub trait PowerSource: Send + Sync {
+    /// `(on_ac, battery_percent)` where percent is 0..=100 (100 when unknown/no battery).
+    fn power_status(&self) -> (bool, u8);
+}
+
 // ponytail: autostart is handled by the cross-platform `tauri-plugin-autostart` (HKCU\Run on
 // Windows) at the shell layer, so it needs no trait in this OS-abstraction boundary.
 
@@ -55,6 +70,8 @@ pub struct Platform {
     pub power: Arc<dyn PowerGuard>,
     /// `Arc` so the scheduler thread can sample without going through Tauri state.
     pub processes: Arc<dyn ProcessMonitor>,
+    pub foreground: Arc<dyn ForegroundMonitor>,
+    pub power_source: Arc<dyn PowerSource>,
     #[allow(dead_code)] // consumed by the capability-aware UI in M3
     pub caps: Capabilities,
 }
@@ -85,6 +102,8 @@ pub fn real() -> Platform {
         Platform {
             power: Arc::new(windows::power::WindowsPowerGuard::new()),
             processes: Arc::new(windows::process::WindowsProcessMonitor::new()),
+            foreground: Arc::new(windows::foreground::WindowsForegroundMonitor::new()),
+            power_source: Arc::new(windows::load::WindowsPowerSource::new()),
             caps: Capabilities {
                 can_prevent_system_sleep: true,
                 can_prevent_display_sleep: true,
@@ -97,6 +116,8 @@ pub fn real() -> Platform {
         Platform {
             power: Arc::new(mock::NoopPowerGuard::default()),
             processes: Arc::new(mock::NoopProcessMonitor::default()),
+            foreground: Arc::new(mock::NoopForegroundMonitor::default()),
+            power_source: Arc::new(mock::NoopPowerSource::default()),
             caps: Capabilities {
                 can_prevent_system_sleep: false,
                 can_prevent_display_sleep: false,

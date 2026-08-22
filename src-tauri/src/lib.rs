@@ -147,7 +147,11 @@ pub fn run() {
         engine.set_profile(profile);
     }
     let engine: SharedEngine = Arc::new(Mutex::new(engine));
-    let sampler = Arc::new(Sampler::new(platform.processes.clone()));
+    let sampler = Arc::new(Sampler::new(
+        platform.processes.clone(),
+        platform.foreground.clone(),
+        platform.power_source.clone(),
+    ));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {
@@ -157,6 +161,24 @@ pub fn run() {
             MacosLauncher::LaunchAgent,
             Some(vec!["--minimized"]),
         ))
+        // Global hotkey (D3): Ctrl+Alt+K toggles the wake lock with no window.
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_shortcuts(["ctrl+alt+k"])
+                .expect("valid shortcut")
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        let cur = app.state::<SharedEngine>().lock().unwrap().manual();
+                        let next = if cur == WakeMode::Off {
+                            WakeMode::KeepRunning
+                        } else {
+                            WakeMode::Off
+                        };
+                        set_manual(app, next);
+                    }
+                })
+                .build(),
+        )
         .manage(engine.clone())
         .manage(Mutex::new(Persist { path: cfg_path, enabled: save_enabled }))
         .setup(move |app| {

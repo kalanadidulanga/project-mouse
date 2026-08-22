@@ -6,7 +6,8 @@
 
 use std::sync::{Arc, Mutex};
 
-use super::{PowerGuard, ProcessMonitor, Result};
+use super::{ForegroundMonitor, PowerGuard, PowerSource, ProcessMonitor, Result};
+use crate::core::rule::NotifState;
 
 #[derive(Default)]
 struct Inner {
@@ -61,6 +62,27 @@ pub struct NoopProcessMonitor;
 impl ProcessMonitor for NoopProcessMonitor {
     fn running_process_names(&self) -> Vec<String> {
         Vec::new()
+    }
+}
+
+/// No-op foreground monitor for non-Windows builds.
+#[derive(Default)]
+pub struct NoopForegroundMonitor;
+impl ForegroundMonitor for NoopForegroundMonitor {
+    fn foreground_app(&self) -> Option<String> {
+        None
+    }
+    fn notification_state(&self) -> NotifState {
+        NotifState::Normal
+    }
+}
+
+/// No-op power source for non-Windows builds — assume plugged in.
+#[derive(Default)]
+pub struct NoopPowerSource;
+impl PowerSource for NoopPowerSource {
+    fn power_status(&self) -> (bool, u8) {
+        (true, 100)
     }
 }
 

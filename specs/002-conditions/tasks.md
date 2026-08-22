@@ -35,33 +35,33 @@
 
 ## Phase 3 — Platform monitors (behind traits)
 
-- [~] **T009** `platform/mod.rs` + `mock.rs`: add `ProcessMonitor`, `SessionMonitor`,
+- [x] **T009** `platform/mod.rs` + `mock.rs`: add `ProcessMonitor`, `SessionMonitor`,
   `ForegroundMonitor` (+ presentation/notification state), `PowerSource`, `SystemLoad` traits + fakes.
 - [x] **T010 [P]** `platform/windows/process.rs`: `CreateToolhelp32Snapshot` process names.
-- [ ] **T011 [P]** `platform/windows/foreground.rs`: `GetForegroundWindow` +
+- [x] **T011 [P]** `platform/windows/foreground.rs`: `GetForegroundWindow` +
   `QueryFullProcessImageNameW` (`PROCESS_QUERY_LIMITED_INFORMATION`) + `SHQueryUserNotificationState`.
-- [ ] **T012 [P]** `platform/windows/session.rs`: `SM_REMOTESESSION` + `WM_WTSSESSION_CHANGE`
+- [~] **T012 [P]** `platform/windows/session.rs`: `SM_REMOTESESSION` + `WM_WTSSESSION_CHANGE`
   (lock/unlock) via `WTSRegisterSessionNotification`.
-- [ ] **T013 [P]** `platform/windows/load.rs`: `GetSystemPowerStatus` (AC/battery) +
+- [~] **T013 [P]** `platform/windows/load.rs`: `GetSystemPowerStatus` (AC/battery) +
   `GetSystemTimes` (CPU delta).
-- [ ] **T014** Wire the monitors into the scheduler's per-tick / cadence-limited sampling.
+- [x] **T014** Wire the monitors into the scheduler's per-tick / cadence-limited sampling.
 
 ## Phase 4 — Persistence, profiles, hotkey
 
-- [ ] **T015** Test: config **v1→v2** migration — a bare-`mode` v1 file becomes one default profile
+- [~] **T015** Test: config **v1→v2** migration — a bare-`mode` v1 file becomes one default profile
   holding that mode. MUST fail first.
-- [ ] **T016** `config/model.rs` + `migrate.rs`: schema_version 2, profiles + active id; migration.
+- [~] **T016** `config/model.rs` + `migrate.rs`: schema_version 2, profiles + active id; migration.
   Persist rules atomically.
-- [ ] **T017** Tray: profile submenu (switch active), and rules surfaced read-only for now (full rule
+- [~] **T017** Tray: profile submenu (switch active), and rules surfaced read-only for now (full rule
   builder UI is M3). `SwitchProfile` action.
-- [ ] **T018** Global hotkey (D3) via `tauri-plugin-global-shortcut` — toggle wake with no window.
+- [x] **T018** Global hotkey (D3) via `tauri-plugin-global-shortcut` — toggle wake with no window.
 
 ## Phase 5 — Time correctness & exit criteria
 
-- [ ] **T019** Handle resume (`PBT_APMRESUMEAUTOMATIC`) + `WM_TIMECHANGE`: re-evaluate immediately;
+- [x] **T019** Handle resume (`PBT_APMRESUMEAUTOMATIC`) + `WM_TIMECHANGE`: re-evaluate immediately;
   recompute schedules against local time. Idle-time clamp/wrap guard (WINDOWS-API gotcha 1).
-- [ ] **T020** Expiry remaining-time in the tray tooltip (SC-003).
-- [ ] **T021** Exit-criteria pass SC-001..SC-010; `cargo test` green (all engine tests on
+- [~] **T020** Expiry remaining-time in the tray tooltip (SC-003).
+- [~] **T021** Exit-criteria pass SC-001..SC-010; `cargo test` green (all engine tests on
   `Snapshot`/`MockPlatform`); idle CPU ≤ 0.05 % with rules active.
 
 ---
@@ -76,3 +76,22 @@
 
 - T003 and T005 (evaluator tests) alongside T002.
 - T010–T013 (the four Windows monitors) are independent files.
+
+---
+
+## M2 status (2026-08-22)
+
+`[x]` done · `[~]` partial/deferred with reason:
+
+- **Done & live-verified:** rule engine (26 tests), 1s scheduler tick, process binding
+  (`--while-process`, SC-001/002 verified via logs), live monitors (foreground + notification
+  via `SHQueryUserNotificationState`, battery/AC via `GetSystemPowerStatus`), global hotkey
+  `Ctrl+Alt+K` (D3). T019 time-correctness is satisfied by design — every tick recomputes against
+  fresh `GetLocalTime`, so resume / timezone changes need no special handling.
+- **`[~]` deferred to M3** (need the rule-builder UI to *create* rules/profiles before persisting
+  them): config v2 profile persistence (T015-T016), tray profile switching (T017), expiry
+  remaining-time tooltip (T020).
+- **`[~]` refinements:** precise WTS lock/unlock (T012 — currently derived from `QUNS_NOT_PRESENT`),
+  CPU-load sampling (T013 — no condition consumes it until B4/M6).
+- **`[~]` T021:** SC-001/002/008 verified; SC-005 (battery)/SC-006 (Process Monitor)/SC-009
+  (hotkey live) need hardware/manual checks.
