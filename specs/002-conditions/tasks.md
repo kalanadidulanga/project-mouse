@@ -9,18 +9,18 @@
 
 ## Phase 1 — Rule engine core (pure, no OS)  🎯 the product
 
-- [ ] **T001** `core/snapshot.rs`: `Snapshot { now, idle, foreground_exe, session_locked,
+- [x] **T001** `core/snapshot.rs`: `Snapshot { now, idle, foreground_exe, session_locked,
   remote_session, notification_state, running_processes, on_ac, battery_pct, cpu_pct }` — plain data
   a tick fills and conditions read. `Default` for tests.
-- [ ] **T002** `core/rule.rs`: `Condition` enum (ProcessRunning, TimeWindow, Expiry, OnACPower,
+- [x] **T002** `core/rule.rs`: `Condition` enum (ProcessRunning, TimeWindow, Expiry, OnACPower,
   BatteryAbove, SessionUnlocked, UserNotificationState, ForegroundAppIn/NotIn, Not, AnyOf, AllOf),
   `Rule { id, name, enabled, conditions, mode }`, `Profile { id, name, rules }`. serde.
-- [ ] **T003 [P]** Test `core/evaluator.rs`: each condition against a constructed `Snapshot`
+- [x] **T003 [P]** Test `core/evaluator.rs`: each condition against a constructed `Snapshot`
   (process name case-insensitive; time window incl. crossing midnight; expiry vs now; battery/AC;
   session; notification state; foreground in/not-in; Not/AnyOf/AllOf). MUST fail first.
-- [ ] **T004** `core/evaluator.rs`: `Condition::eval(&Snapshot) -> bool` + `desired_mode(profile,
+- [x] **T004** `core/evaluator.rs`: `Condition::eval(&Snapshot) -> bool` + `desired_mode(profile,
   &Snapshot) -> WakeMode` (combine-by-max over matching enabled rules). Make T003 pass.
-- [ ] **T005 [P]** Test: combine-by-max across rules (SC-007) — weaker never lowers stronger.
+- [x] **T005 [P]** Test: combine-by-max across rules (SC-007) — weaker never lowers stronger.
 
 ## Phase 2 — The tick
 
