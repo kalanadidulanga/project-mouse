@@ -31,12 +31,14 @@ jobs:
       - name: test
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
-      - name: honesty gate (PRODUCT §5 — no anti-detection language)
+      - name: honesty gate (PRODUCT §5 — no anti-detection language in shipped code/UI)
         shell: bash
         run: |
+          # Scope: the shipping surface only (React UI + Rust). NOT docs/ or specs/ — those
+          # legitimately *discuss* the forbidden terms as the line not to cross (PRODUCT §5).
           if grep -rniE "undetectable|human-like|looks human|natural motion" \
-               src src-tauri/src docs --include="*.rs" --include="*.ts" --include="*.tsx" --include="*.md"; then
-            echo "::error::banned anti-detection/marketing language found (PRODUCT §5, Test 3)"
+               src src-tauri/src --include="*.rs" --include="*.ts" --include="*.tsx"; then
+            echo "::error::banned anti-detection/marketing language in shipped code/UI (PRODUCT §5, Test 3)"
             exit 1
           fi
 
