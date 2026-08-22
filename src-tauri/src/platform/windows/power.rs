@@ -10,8 +10,8 @@ use std::sync::Mutex;
 use windows::core::PWSTR;
 use windows::Win32::Foundation::{CloseHandle, HANDLE};
 use windows::Win32::System::Power::{
-    PowerClearRequest, PowerCreateRequest, PowerSetRequest, PowerRequestDisplayRequired,
-    PowerRequestExecutionRequired, PowerRequestSystemRequired,
+    PowerClearRequest, PowerCreateRequest, PowerRequestDisplayRequired,
+    PowerRequestExecutionRequired, PowerRequestSystemRequired, PowerSetRequest,
 };
 use windows::Win32::System::SystemServices::POWER_REQUEST_CONTEXT_VERSION;
 use windows::Win32::System::Threading::{
@@ -28,8 +28,8 @@ pub struct WindowsPowerGuard {
 }
 
 struct Held {
-    handle: isize,       // HANDLE as isize — HANDLE isn't Send
-    _reason: Vec<u16>,   // kept alive while the request is held
+    handle: isize,     // HANDLE as isize — HANDLE isn't Send
+    _reason: Vec<u16>, // kept alive while the request is held
 }
 
 // SAFETY: the raw HANDLE is only ever touched under the Mutex, on whatever thread holds the lock.
@@ -56,8 +56,8 @@ impl PowerGuard for WindowsPowerGuard {
                     SimpleReasonString: PWSTR(wide.as_ptr() as *mut u16),
                 },
             };
-            let handle =
-                PowerCreateRequest(&ctx).map_err(|e| PlatformError(format!("PowerCreateRequest: {e}")))?;
+            let handle = PowerCreateRequest(&ctx)
+                .map_err(|e| PlatformError(format!("PowerCreateRequest: {e}")))?;
             PowerSetRequest(handle, PowerRequestSystemRequired)
                 .map_err(|e| PlatformError(format!("SystemRequired: {e}")))?;
             PowerSetRequest(handle, PowerRequestExecutionRequired)
@@ -66,7 +66,10 @@ impl PowerGuard for WindowsPowerGuard {
                 PowerSetRequest(handle, PowerRequestDisplayRequired)
                     .map_err(|e| PlatformError(format!("DisplayRequired: {e}")))?;
             }
-            *self.held.lock().unwrap() = Some(Held { handle: handle.0 as isize, _reason: wide });
+            *self.held.lock().unwrap() = Some(Held {
+                handle: handle.0 as isize,
+                _reason: wide,
+            });
         }
         Ok(())
     }

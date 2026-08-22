@@ -80,12 +80,17 @@ pub fn resume_all(engine: State<'_, SharedEngine>) {
 }
 
 #[tauri::command]
-pub fn get_diagnostics(engine: State<'_, SharedEngine>, input: State<'_, SharedInput>) -> Diagnostics {
+pub fn get_diagnostics(
+    engine: State<'_, SharedEngine>,
+    input: State<'_, SharedInput>,
+) -> Diagnostics {
     let m = engine.lock().unwrap().mode();
     let ie = input.lock().unwrap();
     let reason = match m {
         WakeMode::Off => "Not holding anything.".to_string(),
-        WakeMode::KeepRunning => "Keeping the system awake; the screen may still sleep.".to_string(),
+        WakeMode::KeepRunning => {
+            "Keeping the system awake; the screen may still sleep.".to_string()
+        }
         WakeMode::KeepPresenting => "Keeping the system awake and the display on.".to_string(),
     };
     Diagnostics {
@@ -131,7 +136,12 @@ pub fn delete_rule(app: AppHandle, engine: State<'_, SharedEngine>, id: String) 
 }
 
 #[tauri::command]
-pub fn set_rule_enabled(app: AppHandle, engine: State<'_, SharedEngine>, id: String, enabled: bool) {
+pub fn set_rule_enabled(
+    app: AppHandle,
+    engine: State<'_, SharedEngine>,
+    id: String,
+    enabled: bool,
+) {
     engine.lock().unwrap().set_rule_enabled(&id, enabled);
     crate::persist_current(&app);
 }

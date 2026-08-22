@@ -1,0 +1,57 @@
+# CI gates (ROADMAP "never later" + M5). Runs on every push/PR.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: rustfmt
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      - name: clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      - name: test
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: honesty gate (PRODUCT §5 — no anti-detection language)
+        shell: bash
+        run: |
+          if grep -rniE "undetectable|human-like|looks human|natural motion" \
+               src src-tauri/src docs --include="*.rs" --include="*.ts" --include="*.tsx" --include="*.md"; then
+            echo "::error::banned anti-detection/marketing language found (PRODUCT §5, Test 3)"
+            exit 1
+          fi
+
+      - name: platform boundary lint (constitution IV — no cfg(windows) outside platform/)
+        shell: bash
+        run: |
+          if grep -rn "cfg(windows)" src-tauri/src --include="*.rs" | grep -v "src-tauri/src/platform/"; then
+            echo "::error::cfg(windows) leaked outside platform/ (constitution IV)"
+            exit 1
+          fi
+
+      - name: size gate (README budget — exe <= 8 MB)
+        shell: bash
+        run: |
+          cargo build --release --manifest-path src-tauri/Cargo.toml
+          sz=$(stat -c%s src-tauri/target/release/project-mouse.exe)
+          echo "release exe: $sz bytes"
+          [ "$sz" -le 8388608 ] || { echo "::error::exe exceeds the 8 MB budget"; exit 1; }

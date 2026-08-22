@@ -28,7 +28,11 @@ impl std::fmt::Display for ConfigError {
 /// Pure decision (testable without the filesystem): portable — beside the exe — when the exe's
 /// directory is writable; otherwise roaming (`%APPDATA%\project-mouse`); falling back to
 /// beside-the-exe when there is no APPDATA at all.
-pub fn choose_config_path(exe_dir: &Path, appdata: Option<&Path>, exe_dir_writable: bool) -> PathBuf {
+pub fn choose_config_path(
+    exe_dir: &Path,
+    appdata: Option<&Path>,
+    exe_dir_writable: bool,
+) -> PathBuf {
     if exe_dir_writable {
         exe_dir.join(CONFIG_FILE)
     } else if let Some(ad) = appdata {
@@ -65,8 +69,8 @@ fn dir_is_writable(dir: &Path) -> bool {
 pub fn load(path: &Path) -> Result<Config, ConfigError> {
     match std::fs::read_to_string(path) {
         Ok(s) => {
-            let value: serde_json::Value =
-                serde_json::from_str(&s).map_err(|e| ConfigError::Parse(format!("invalid JSON: {e}")))?;
+            let value: serde_json::Value = serde_json::from_str(&s)
+                .map_err(|e| ConfigError::Parse(format!("invalid JSON: {e}")))?;
             migrate::migrate(value).map_err(ConfigError::Parse)
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Config::default()),
@@ -110,13 +114,21 @@ mod tests {
 
     #[test]
     fn portable_when_exe_dir_writable() {
-        let p = choose_config_path(Path::new("C:/tools/pm"), Some(Path::new("C:/AppData/Roaming")), true);
+        let p = choose_config_path(
+            Path::new("C:/tools/pm"),
+            Some(Path::new("C:/AppData/Roaming")),
+            true,
+        );
         assert_eq!(p, Path::new("C:/tools/pm/config.json"));
     }
 
     #[test]
     fn roaming_when_exe_dir_readonly() {
-        let p = choose_config_path(Path::new("C:/Program Files/pm"), Some(Path::new("C:/AppData/Roaming")), false);
+        let p = choose_config_path(
+            Path::new("C:/Program Files/pm"),
+            Some(Path::new("C:/AppData/Roaming")),
+            false,
+        );
         assert_eq!(p, Path::new("C:/AppData/Roaming/project-mouse/config.json"));
     }
 
@@ -154,7 +166,10 @@ mod tests {
         assert!(matches!(result, Err(ConfigError::Parse(_))));
         // the broken file is preserved for recovery — never silently reset
         assert!(path.exists());
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{ this is not valid json ");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "{ this is not valid json "
+        );
         let _ = std::fs::remove_file(&path);
     }
 

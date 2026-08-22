@@ -104,18 +104,6 @@ pub fn local_time() -> (u8, u16) {
     }
 }
 
-/// Milliseconds since the last input the OS observed (system idle). 0 off Windows.
-pub fn system_idle_ms() -> u64 {
-    #[cfg(windows)]
-    {
-        windows::system_idle_ms()
-    }
-    #[cfg(not(windows))]
-    {
-        0
-    }
-}
-
 /// Raw `GetLastInputInfo.dwTime` tick (u32) — for the self-injection filter. 0 off Windows.
 pub fn last_input_tick() -> u32 {
     #[cfg(windows)]
@@ -139,6 +127,8 @@ pub fn tick_now() -> u32 {
         0
     }
 }
+
+// (system idle in ms is derived from last_input_tick/tick_now by the input engine's IdleTracker.)
 
 /// This process's working-set bytes (for the memory readout). 0 off Windows.
 pub fn working_set_bytes() -> u64 {

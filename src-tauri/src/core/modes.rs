@@ -23,7 +23,9 @@ impl WakeMode {
     pub fn reason(self) -> &'static str {
         match self {
             WakeMode::Off => "project-mouse: not holding",
-            WakeMode::KeepRunning => "project-mouse: Keep running (system awake, display may sleep)",
+            WakeMode::KeepRunning => {
+                "project-mouse: Keep running (system awake, display may sleep)"
+            }
             WakeMode::KeepPresenting => "project-mouse: Keep presenting (system awake, display on)",
         }
     }
@@ -49,7 +51,10 @@ mod tests {
 
     #[test]
     fn combine_takes_the_maximum() {
-        assert_eq!(WakeMode::combine([Off, KeepRunning, KeepPresenting]), KeepPresenting);
+        assert_eq!(
+            WakeMode::combine([Off, KeepRunning, KeepPresenting]),
+            KeepPresenting
+        );
         assert_eq!(WakeMode::combine([Off, KeepRunning]), KeepRunning);
         assert_eq!(WakeMode::combine([Off, Off]), Off);
         assert_eq!(WakeMode::combine([]), Off);

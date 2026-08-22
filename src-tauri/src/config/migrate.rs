@@ -18,7 +18,8 @@ pub fn migrate(mut value: serde_json::Value) -> Result<Config, String> {
         // stamping the version; `#[serde(default)]` fills the fields added since (profiles, active).
         0 | 1 => {
             value["schema_version"] = serde_json::json!(CURRENT_SCHEMA_VERSION);
-            serde_json::from_value(value).map_err(|e| format!("migrate v{version}→v{CURRENT_SCHEMA_VERSION}: {e}"))
+            serde_json::from_value(value)
+                .map_err(|e| format!("migrate v{version}→v{CURRENT_SCHEMA_VERSION}: {e}"))
         }
         2 => serde_json::from_value(value).map_err(|e| format!("parse v2: {e}")),
         v => Err(format!(

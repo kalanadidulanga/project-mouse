@@ -76,7 +76,9 @@ impl InputEngine {
         if self.human_idle_ms < self.stand_down_ms {
             return;
         }
-        let due = self.last_jiggle.map_or(true, |t| now.wrapping_sub(t) >= self.interval_ms);
+        let due = self
+            .last_jiggle
+            .is_none_or(|t| now.wrapping_sub(t) >= self.interval_ms);
         if self.human_idle_ms >= self.idle_threshold_ms && due {
             let res = if self.key != 0 {
                 self.injector.key(self.key)

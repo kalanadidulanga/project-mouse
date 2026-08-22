@@ -32,7 +32,11 @@ pub enum Condition {
     /// Any of these executable names is running (case-insensitive).
     ProcessRunning(Vec<String>),
     /// Local time window. `from`/`to` are minutes-of-day [0,1440); `from > to` crosses midnight.
-    TimeWindow { days: [bool; 7], from: u16, to: u16 },
+    TimeWindow {
+        days: [bool; 7],
+        from: u16,
+        to: u16,
+    },
     /// Holds while `now < deadline` (unix seconds). Releases at the deadline.
     ExpiryAt(u64),
     OnACPower,
@@ -71,6 +75,10 @@ pub struct Profile {
 
 impl Profile {
     pub fn new(id: impl Into<String>, name: impl Into<String>) -> Self {
-        Self { id: id.into(), name: name.into(), rules: Vec::new() }
+        Self {
+            id: id.into(),
+            name: name.into(),
+            rules: Vec::new(),
+        }
     }
 }

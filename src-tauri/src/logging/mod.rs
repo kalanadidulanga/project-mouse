@@ -39,7 +39,7 @@ pub fn tail(n: usize) -> Vec<String> {
         rd.filter_map(|e| e.ok().map(|e| e.path()))
             .filter(|p| {
                 p.file_name()
-                    .map_or(false, |f| f.to_string_lossy().starts_with("project-mouse.log"))
+                    .is_some_and(|f| f.to_string_lossy().starts_with("project-mouse.log"))
             })
             .max_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok())
     });

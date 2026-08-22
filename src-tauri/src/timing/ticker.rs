@@ -22,7 +22,17 @@ pub fn run_loop(period_ms: u32, tolerable_ms: u32, on_tick: impl FnMut() -> bool
             Err(_) => return sleep_loop(period_ms, on_tick),
         };
         let due: i64 = -(period_ms as i64) * 10_000; // relative, 100 ns units
-        if SetWaitableTimerEx(timer, &due, period_ms as i32, None, None, None, tolerable_ms).is_err() {
+        if SetWaitableTimerEx(
+            timer,
+            &due,
+            period_ms as i32,
+            None,
+            None,
+            None,
+            tolerable_ms,
+        )
+        .is_err()
+        {
             let _ = CloseHandle(timer);
             return sleep_loop(period_ms, on_tick);
         }

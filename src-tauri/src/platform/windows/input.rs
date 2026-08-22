@@ -62,7 +62,9 @@ fn send(inputs: &[INPUT]) -> Result<()> {
     // That case is caught by verifying the idle clock reset (C7), not here.
     let sent = unsafe { SendInput(inputs, std::mem::size_of::<INPUT>() as i32) };
     if sent as usize != inputs.len() {
-        return Err(PlatformError("SendInput did not dispatch all events (blocked)".into()));
+        return Err(PlatformError(
+            "SendInput did not dispatch all events (blocked)".into(),
+        ));
     }
     Ok(())
 }

@@ -29,7 +29,10 @@ pub struct IdleTracker {
 
 impl IdleTracker {
     pub fn new(now: u32) -> Self {
-        Self { human_last_input: now, injected_at: None }
+        Self {
+            human_last_input: now,
+            injected_at: None,
+        }
     }
 
     /// Record that we injected input at `now`.

@@ -43,8 +43,12 @@ impl Default for Config {
 }
 
 impl Config {
+    #[allow(dead_code)] // convenience ctor used by tests; kept as a small public API
     pub fn with_mode(mode: WakeMode) -> Self {
-        Self { mode, ..Default::default() }
+        Self {
+            mode,
+            ..Default::default()
+        }
     }
 
     /// The active profile, if one is set and exists.

@@ -33,7 +33,7 @@ impl Sampler {
 
     fn process_names(&self) -> Vec<String> {
         let mut cache = self.proc_cache.lock().unwrap();
-        let stale = cache.0.map_or(true, |t| t.elapsed() >= self.proc_interval);
+        let stale = cache.0.is_none_or(|t| t.elapsed() >= self.proc_interval);
         if stale {
             cache.1 = self.processes.running_process_names();
             cache.0 = Some(Instant::now());

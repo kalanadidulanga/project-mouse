@@ -14,7 +14,10 @@ pub struct PowerReconciler {
 
 impl PowerReconciler {
     pub fn new(guard: Arc<dyn PowerGuard>) -> Self {
-        Self { guard, current: WakeMode::Off }
+        Self {
+            guard,
+            current: WakeMode::Off,
+        }
     }
 
     #[allow(dead_code)] // read by tests now; by the IPC/diagnostics surface in M3

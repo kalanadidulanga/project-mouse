@@ -33,7 +33,11 @@ impl MockPowerGuard {
 
 impl PowerGuard for MockPowerGuard {
     fn set(&self, display: bool, reason: &str) -> Result<()> {
-        self.inner.calls.lock().unwrap().push(format!("set(display={display}, reason={reason})"));
+        self.inner
+            .calls
+            .lock()
+            .unwrap()
+            .push(format!("set(display={display}, reason={reason})"));
         *self.inner.display_held.lock().unwrap() = Some(display);
         Ok(())
     }

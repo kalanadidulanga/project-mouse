@@ -1,0 +1,50 @@
+# Release pipeline (UPDATES.md §5). Builds, signs the update artifacts, and drafts a GitHub release.
+# Requires these repo secrets before it can sign — see docs/SHIP.md:
+#   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD  (minisign update key)
+#   MANIFEST_TOKEN                                                  (cPanel latest.json publish)
+# Authenticode/SmartScreen signing (SignPath) is a separate concern — see docs/SHIP.md.
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - run: npm ci
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "project-mouse v__VERSION__"
+          releaseBody: "See CHANGELOG.md"
+          releaseDraft: true # review before it reaches users
+          prerelease: false
+
+      # Push the update manifest to the own-domain endpoint (GitHub is the fallback).
+      - name: Publish update manifest
+        if: ${{ env.MANIFEST_TOKEN != '' }}
+        env:
+          MANIFEST_TOKEN: ${{ secrets.MANIFEST_TOKEN }}
+        shell: bash
+        run: |
+          curl -f -X POST "https://kalanadidulanga.com/project-mouse/update/publish.php" \
+               -H "Authorization: Bearer ${MANIFEST_TOKEN}" \
+               -H "Content-Type: application/json" \
+               --data-binary "@latest.json"

@@ -93,7 +93,14 @@ fn open_window(app: &tauri::AppHandle) {
         let _ = w.set_focus();
         return;
     }
-    match app.config().app.windows.iter().find(|w| w.label == "main").cloned() {
+    match app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == "main")
+        .cloned()
+    {
         Some(cfg) => match tauri::WebviewWindowBuilder::from_config(app, &cfg) {
             Ok(b) => {
                 let _ = b.build();
@@ -175,7 +182,8 @@ pub fn run() {
     // Restore last manual mode + active profile; a corrupt config disables saving so it is
     // preserved (FEATURES D8).
     let cfg_path = store::resolve_config_path();
-    let (initial_mode, initial_profile, initial_input, save_enabled) = match store::load(&cfg_path) {
+    let (initial_mode, initial_profile, initial_input, save_enabled) = match store::load(&cfg_path)
+    {
         Ok(c) => (c.mode, c.active().cloned(), c.input_enabled, true),
         Err(e) => {
             tracing::error!("config load failed ({e}); starting Off and preserving the file");
@@ -232,7 +240,10 @@ pub fn run() {
         )
         .manage(engine.clone())
         .manage(input_engine.clone())
-        .manage(Mutex::new(Persist { path: cfg_path, enabled: save_enabled }))
+        .manage(Mutex::new(Persist {
+            path: cfg_path,
+            enabled: save_enabled,
+        }))
         .invoke_handler(tauri::generate_handler![
             ipc::get_state,
             ipc::set_mode,
@@ -358,7 +369,7 @@ pub fn run() {
 
             tracing::info!("project-mouse started (tray + scheduler running)");
             if std::env::args().any(|a| a == "--show") {
-                open_window(&app.handle());
+                open_window(app.handle());
             }
             std::thread::spawn(|| {
                 std::thread::sleep(std::time::Duration::from_secs(3));
@@ -369,7 +380,9 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error building tauri app")
         .run(|app, event| match event {
-            tauri::RunEvent::ExitRequested { code: None, api, .. } => api.prevent_exit(),
+            tauri::RunEvent::ExitRequested {
+                code: None, api, ..
+            } => api.prevent_exit(),
             tauri::RunEvent::Exit => release_all(app),
             _ => {}
         });

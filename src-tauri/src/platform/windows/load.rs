@@ -21,7 +21,11 @@ impl PowerSource for WindowsPowerSource {
                 // ACLineStatus: 0 = on battery, 1 = plugged in, 255 = unknown (usually a desktop).
                 let on_ac = s.ACLineStatus != 0;
                 // BatteryLifePercent: 0..100, or 255 when unknown / no battery.
-                let pct = if s.BatteryLifePercent == 255 { 100 } else { s.BatteryLifePercent };
+                let pct = if s.BatteryLifePercent == 255 {
+                    100
+                } else {
+                    s.BatteryLifePercent
+                };
                 (on_ac, pct)
             } else {
                 (true, 100)

@@ -46,17 +46,6 @@ pub fn tick_now() -> u32 {
     unsafe { GetTickCount() }
 }
 
-/// System idle time in ms — clamped per WINDOWS-API gotcha 1 (49-day wrap + non-monotonic dwTime).
-pub fn system_idle_ms() -> u64 {
-    let raw = tick_now().wrapping_sub(last_input_tick());
-    const SANITY_MAX: u32 = 1000 * 60 * 60 * 24 * 7;
-    if raw > SANITY_MAX {
-        0
-    } else {
-        raw as u64
-    }
-}
-
 /// Working-set bytes (`GetProcessMemoryInfo`) for the memory readout.
 pub fn working_set_bytes() -> u64 {
     use windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};

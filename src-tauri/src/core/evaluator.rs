@@ -8,9 +8,11 @@ use crate::core::snapshot::Snapshot;
 impl Condition {
     pub fn eval(&self, s: &Snapshot) -> bool {
         match self {
-            Condition::ProcessRunning(names) => names
-                .iter()
-                .any(|n| s.running_processes.iter().any(|p| p.eq_ignore_ascii_case(n))),
+            Condition::ProcessRunning(names) => names.iter().any(|n| {
+                s.running_processes
+                    .iter()
+                    .any(|p| p.eq_ignore_ascii_case(n))
+            }),
             Condition::TimeWindow { days, from, to } => {
                 time_window_holds(*days, *from, *to, s.weekday, s.minutes)
             }
@@ -53,7 +55,13 @@ pub fn rule_holds(rule: &Rule, s: &Snapshot) -> bool {
 
 /// The mode the machine should hold: the maximum over all contributing rules (ARCHITECTURE §5).
 pub fn desired_mode(profile: &Profile, s: &Snapshot) -> WakeMode {
-    WakeMode::combine(profile.rules.iter().filter(|r| rule_holds(r, s)).map(|r| r.mode))
+    WakeMode::combine(
+        profile
+            .rules
+            .iter()
+            .filter(|r| rule_holds(r, s))
+            .map(|r| r.mode),
+    )
 }
 
 #[cfg(test)]
@@ -66,7 +74,13 @@ mod tests {
         Snapshot::default()
     }
     fn rule(mode: crate::core::modes::WakeMode, conditions: Vec<Condition>) -> Rule {
-        Rule { id: "r".into(), name: "r".into(), enabled: true, conditions, mode }
+        Rule {
+            id: "r".into(),
+            name: "r".into(),
+            enabled: true,
+            conditions,
+            mode,
+        }
     }
 
     #[test]
@@ -82,7 +96,11 @@ mod tests {
         let mut s = snap();
         s.weekday = 2; // Wed
         s.minutes = 10 * 60; // 10:00
-        let wd = TimeWindow { days: [true, true, true, true, true, false, false], from: 8 * 60, to: 18 * 60 };
+        let wd = TimeWindow {
+            days: [true, true, true, true, true, false, false],
+            from: 8 * 60,
+            to: 18 * 60,
+        };
         assert!(wd.eval(&s));
         s.minutes = 19 * 60;
         assert!(!wd.eval(&s));
@@ -94,7 +112,11 @@ mod tests {
     #[test]
     fn time_window_crossing_midnight() {
         // 22:00 Mon -> 06:00 Tue
-        let wd = TimeWindow { days: [true, false, false, false, false, false, false], from: 22 * 60, to: 6 * 60 };
+        let wd = TimeWindow {
+            days: [true, false, false, false, false, false, false],
+            from: 22 * 60,
+            to: 6 * 60,
+        };
         let mut s = snap();
         s.weekday = 0; // Mon
         s.minutes = 23 * 60; // 23:00 Mon -> in
@@ -138,7 +160,10 @@ mod tests {
 
         s.notification_state = NotifState::Presentation;
         assert!(NotificationStateIn(vec![NotifState::Presentation]).eval(&s));
-        assert!(Not(Box::new(NotificationStateIn(vec![NotifState::Presentation]))).eval(&s) == false);
+        assert!(!Not(Box::new(NotificationStateIn(vec![
+            NotifState::Presentation
+        ])))
+        .eval(&s));
 
         s.foreground_exe = Some("Photoshop.exe".into());
         assert!(ForegroundAppIn(vec!["photoshop.exe".into()]).eval(&s));
@@ -155,12 +180,18 @@ mod tests {
         s.on_ac = true;
         s.notification_state = NotifState::Normal;
         // weekday/time: make an all-day window
-        let allday = TimeWindow { days: [true; 7], from: 0, to: 1440 };
+        let allday = TimeWindow {
+            days: [true; 7],
+            from: 0,
+            to: 1440,
+        };
         let composed = AllOf(vec![
             ProcessRunning(vec!["msbuild.exe".into()]),
             OnACPower,
             allday,
-            Not(Box::new(NotificationStateIn(vec![NotifState::Presentation]))),
+            Not(Box::new(NotificationStateIn(vec![
+                NotifState::Presentation,
+            ]))),
         ]);
         assert!(composed.eval(&s));
         s.notification_state = NotifState::Presentation;
@@ -172,7 +203,10 @@ mod tests {
         let mut s = snap();
         s.running_processes = vec!["msbuild.exe".into()];
         let mut p = Profile::new("p", "P");
-        p.rules.push(rule(KeepRunning, vec![ProcessRunning(vec!["msbuild.exe".into()])]));
+        p.rules.push(rule(
+            KeepRunning,
+            vec![ProcessRunning(vec!["msbuild.exe".into()])],
+        ));
         p.rules.push(rule(KeepPresenting, vec![])); // unconditional presenting
         assert_eq!(desired_mode(&p, &s), KeepPresenting); // stronger wins
 
