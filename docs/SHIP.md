@@ -31,8 +31,7 @@ ROADMAP M5 + UPDATES.md into one runnable list. Items marked **[human]** cannot 
      regenerate with your own before public release if you like (`npm run tauri signer generate`).
    - **[human] Set two GitHub repo secrets:** `TAURI_SIGNING_PRIVATE_KEY` = the **contents** of
      `pm-updater.key`; `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` = its password.
-   - **[human] Set the real endpoint:** edit `plugins.updater.endpoints` in `tauri.conf.json` — it
-     currently points at `github.com/kayd/project-mouse`; change `kayd/project-mouse` to your repo.
+   - ✅ endpoint set to `github.com/kalanadidulanga/project-mouse` in `tauri.conf.json`.
 2. **[human] Publish the repo to GitHub** (GitHub Desktop → *Publish repository*, **public** — free
    Actions + free Releases CDN). Then tag `vX.Y.Z` → `release.yml` builds, signs, drafts a release
    with the installer + `latest.json`. Review the draft → publish. Installed apps update from there.
