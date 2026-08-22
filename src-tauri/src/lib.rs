@@ -303,7 +303,10 @@ pub fn run() {
                 });
             });
 
-            tracing::info!("project-mouse M2 started (tray only, scheduler running)");
+            tracing::info!("project-mouse started (tray + scheduler running)");
+            if std::env::args().any(|a| a == "--show") {
+                open_window(&app.handle());
+            }
             std::thread::spawn(|| {
                 std::thread::sleep(std::time::Duration::from_secs(3));
                 platform::trim_working_set();

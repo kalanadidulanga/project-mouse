@@ -1,0 +1,136 @@
+/* project-mouse settings window. Follow Windows — no invented look (UI-UX §5). System light/dark,
+   Fluent 4px radius, one accent, greyscale otherwise. Motion budget per UI-UX §4. */
+
+:root {
+  --bg: #ffffff;
+  --surface: #f6f6f6;
+  --surface-2: #efefef;
+  --text: #1a1a1a;
+  --text-2: #5c5c5c;
+  --border: #e2e2e2;
+  --accent: #0067c0;
+  --active: #0f7b0f;
+  --error: #c42b1c;
+  --radius: 4px;
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #202020;
+    --surface: #2b2b2b;
+    --surface-2: #333333;
+    --text: #ffffff;
+    --text-2: #a6a6a6;
+    --border: #3a3a3a;
+    --accent: #4cc2ff;
+    --active: #6ccb5f;
+    --error: #ff99a4;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ── shell ── */
+.app { display: grid; grid-template-columns: 148px 1fr; height: 100vh; }
+
+.rail {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rail .brand { font-size: 12px; color: var(--text-2); padding: 4px 8px 12px; letter-spacing: .02em; }
+.rail button {
+  all: unset;
+  display: block;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 13px;
+  cursor: default;
+}
+.rail button:hover { background: var(--surface-2); }
+.rail button.active { background: var(--surface-2); font-weight: 600; }
+.rail button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rail .spacer { flex: 1; }
+
+.content { padding: 20px 24px; overflow-y: auto; }
+.content h1 { font-size: 15px; font-weight: 600; margin: 0 0 16px; }
+
+/* ── status card ── */
+.status-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+}
+.status-line { font-size: 18px; font-weight: 600; }
+.status-line.active { color: var(--active); }
+.status-sub { color: var(--text-2); font-size: 13px; margin-top: 4px; }
+
+.row { display: flex; justify-content: space-between; align-items: center; padding: 10px 2px; border-bottom: 1px solid var(--border); }
+.row:last-child { border-bottom: none; }
+.row .k { color: var(--text-2); font-size: 13px; }
+.row .v { font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* ── controls ── */
+.btn {
+  all: unset;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  cursor: default;
+  font-size: 13px;
+}
+.btn:hover { border-color: var(--accent); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-group { display: flex; gap: 8px; margin-top: 12px; }
+.btn.selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* toggle */
+.switch { display: inline-flex; align-items: center; gap: 8px; cursor: default; margin-top: 16px; }
+.switch .track {
+  width: 40px; height: 20px; border-radius: 10px; background: var(--surface-2);
+  border: 1px solid var(--border); position: relative; transition: background 120ms ease;
+}
+.switch .track .thumb {
+  position: absolute; top: 1px; left: 1px; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--text-2); transition: transform 120ms ease;
+}
+.switch.on .track { background: var(--accent); border-color: var(--accent); }
+.switch.on .track .thumb { transform: translateX(20px); background: #fff; }
+.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 12px; }
+
+/* effect readout */
+.effect { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin-top: 8px; }
+.effect .label { color: var(--text-2); font-size: 13px; }
+.effect .state { font-size: 13px; font-variant-numeric: tabular-nums; }
+.effect .blocked { color: var(--active); }
+.effect .allowed { color: var(--text-2); }
+
+/* activity log */
+.log { font-family: "Cascadia Mono", "Consolas", monospace; font-size: 12px; line-height: 1.5; color: var(--text-2); white-space: pre-wrap; word-break: break-word; }
+
+.note { color: var(--text-2); font-size: 13px; line-height: 1.5; }
+.mono-hint { font-family: "Cascadia Mono", "Consolas", monospace; background: var(--surface-2); padding: 2px 6px; border-radius: var(--radius); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
