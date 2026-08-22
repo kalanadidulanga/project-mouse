@@ -52,6 +52,15 @@ pub trait PowerSource: Send + Sync {
     fn power_status(&self) -> (bool, u8);
 }
 
+/// Synthetic input (the opt-in engine, FEATURES Part C). A non-error return does NOT mean the input
+/// landed — UIPI can discard it silently (gotcha 3); verify via the idle clock (C7).
+pub trait InputInjector: Send + Sync {
+    /// A virtual jiggle: net-zero visible cursor movement that still resets the idle timer (C1).
+    fn virtual_jiggle(&self) -> Result<()>;
+    /// Press and release a virtual key (default `VK_F15`), down+up in one call (C3, gotcha 8).
+    fn key(&self, vk: u16) -> Result<()>;
+}
+
 // ponytail: autostart is handled by the cross-platform `tauri-plugin-autostart` (HKCU\Run on
 // Windows) at the shell layer, so it needs no trait in this OS-abstraction boundary.
 
@@ -72,6 +81,7 @@ pub struct Platform {
     pub processes: Arc<dyn ProcessMonitor>,
     pub foreground: Arc<dyn ForegroundMonitor>,
     pub power_source: Arc<dyn PowerSource>,
+    pub input: Arc<dyn InputInjector>,
     #[allow(dead_code)] // consumed by the capability-aware UI in M3
     pub caps: Capabilities,
 }
@@ -106,6 +116,30 @@ pub fn system_idle_ms() -> u64 {
     }
 }
 
+/// Raw `GetLastInputInfo.dwTime` tick (u32) — for the self-injection filter. 0 off Windows.
+pub fn last_input_tick() -> u32 {
+    #[cfg(windows)]
+    {
+        windows::last_input_tick()
+    }
+    #[cfg(not(windows))]
+    {
+        0
+    }
+}
+
+/// Raw `GetTickCount` (u32) — same clock domain as `last_input_tick`. 0 off Windows.
+pub fn tick_now() -> u32 {
+    #[cfg(windows)]
+    {
+        windows::tick_now()
+    }
+    #[cfg(not(windows))]
+    {
+        0
+    }
+}
+
 /// This process's working-set bytes (for the memory readout). 0 off Windows.
 pub fn working_set_bytes() -> u64 {
     #[cfg(windows)]
@@ -128,6 +162,7 @@ pub fn real() -> Platform {
             processes: Arc::new(windows::process::WindowsProcessMonitor::new()),
             foreground: Arc::new(windows::foreground::WindowsForegroundMonitor::new()),
             power_source: Arc::new(windows::load::WindowsPowerSource::new()),
+            input: Arc::new(windows::input::WindowsInputInjector::new()),
             caps: Capabilities {
                 can_prevent_system_sleep: true,
                 can_prevent_display_sleep: true,
@@ -142,6 +177,7 @@ pub fn real() -> Platform {
             processes: Arc::new(mock::NoopProcessMonitor::default()),
             foreground: Arc::new(mock::NoopForegroundMonitor::default()),
             power_source: Arc::new(mock::NoopPowerSource::default()),
+            input: Arc::new(mock::NoopInjector::default()),
             caps: Capabilities {
                 can_prevent_system_sleep: false,
                 can_prevent_display_sleep: false,

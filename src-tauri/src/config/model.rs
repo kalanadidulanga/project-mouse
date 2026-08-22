@@ -25,6 +25,9 @@ pub struct Config {
     /// Id of the active profile, or empty for none.
     #[serde(default)]
     pub active_profile: String,
+    /// The opt-in input engine. **Off by default** (FEATURES Part C).
+    #[serde(default)]
+    pub input_enabled: bool,
 }
 
 impl Default for Config {
@@ -34,6 +37,7 @@ impl Default for Config {
             mode: WakeMode::Off,
             profiles: Vec::new(),
             active_profile: String::new(),
+            input_enabled: false,
         }
     }
 }

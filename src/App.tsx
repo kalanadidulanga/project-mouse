@@ -18,6 +18,9 @@ type Diagnostics = {
   reason: string;
   memory_mb: number;
   system_idle_secs: number;
+  human_idle_secs: number;
+  input_enabled: boolean;
+  input_blocked: boolean;
 };
 
 type Page = "status" | "rules" | "activity" | "settings";
@@ -98,7 +101,16 @@ export default function App() {
         )}
         {page === "rules" && <RulesPage />}
         {page === "activity" && <ActivityPage logs={logs} />}
-        {page === "settings" && <SettingsPage state={state} onMode={setMode} />}
+        {page === "settings" && (
+          <SettingsPage
+            state={state}
+            diag={diag}
+            onMode={setMode}
+            onToggleInput={() =>
+              invoke("set_input_enabled", { enabled: !diag?.input_enabled }).then(refresh)
+            }
+          />
+        )}
       </main>
     </div>
   );
@@ -152,13 +164,22 @@ function StatusPage({
           {diag?.lock_blocked ? "blocked" : "allowed"}
         </span>
         <span className="label">Input synthesis</span>
-        <span className="state allowed">off</span>
+        <span className={`state ${diag?.input_blocked ? "" : "allowed"}`} style={diag?.input_blocked ? { color: "var(--error)" } : undefined}>
+          {diag?.input_enabled ? (diag.input_blocked ? "blocked" : "on") : "off"}
+        </span>
       </div>
+
+      {diag?.input_blocked && (
+        <p className="note" style={{ color: "var(--error)", marginTop: 12 }}>
+          Input is being discarded — an elevated window has focus, so synthesized input goes nowhere.
+        </p>
+      )}
 
       <div style={{ marginTop: 20 }}>
         <div className="row"><span className="k">Profile</span><span className="v">{state?.profile ?? "—"}</span></div>
         <div className="row"><span className="k">Memory</span><span className="v">{diag ? `${diag.memory_mb.toFixed(1)} MB` : "—"}</span></div>
         <div className="row"><span className="k">System idle</span><span className="v">{diag ? fmtIdle(diag.system_idle_secs) : "—"}</span></div>
+        <div className="row"><span className="k">Human idle</span><span className="v">{diag ? fmtIdle(diag.human_idle_secs) : "—"}</span></div>
       </div>
 
       <ModeButtons manual={state?.manual_mode} onMode={onMode} />
@@ -295,18 +316,54 @@ function ActivityPage({ logs }: { logs: string[] }) {
   );
 }
 
-function SettingsPage({ state, onMode }: { state: StateView | null; onMode: (m: string) => void }) {
+function SettingsPage({
+  state,
+  diag,
+  onMode,
+  onToggleInput,
+}: {
+  state: StateView | null;
+  diag: Diagnostics | null;
+  onMode: (m: string) => void;
+  onToggleInput: () => void;
+}) {
+  const inputOn = diag?.input_enabled ?? false;
   return (
     <>
       <h1>Settings</h1>
       <p className="note">Set the mode directly:</p>
       <ModeButtons manual={state?.manual_mode} onMode={onMode} />
+
+      <div style={{ marginTop: 24, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <strong style={{ fontSize: 13 }}>Synthesize input</strong>
+          <div
+            className={`switch ${inputOn ? "on" : ""}`}
+            role="switch"
+            aria-checked={inputOn}
+            tabIndex={0}
+            style={{ marginTop: 0 }}
+            onClick={onToggleInput}
+            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onToggleInput()}
+          >
+            <span className="track"><span className="thumb" /></span>
+            <span>{inputOn ? "On" : "Off"}</span>
+          </div>
+        </div>
+        <p className="note" style={{ marginTop: 8 }}>
+          With this on, the app synthesizes input — a virtual jiggle while you are idle — to reset
+          session and presence timers that keeping the machine awake cannot. Synthesized input is
+          detectable and may be against an acceptable-use policy. It stands down the moment you
+          return, and stops the instant you turn this off.
+        </p>
+      </div>
+
       <p className="note" style={{ marginTop: 20 }}>
         Start with Windows and Quit are on the tray menu. Toggle the wake lock any time with
         <span className="mono-hint"> Ctrl+Alt+K</span>.
       </p>
       <p className="note">
-        By default this tool synthesizes no input and cannot defeat a screen lock or a chat
+        With input synthesis off (the default), this tool cannot defeat a screen lock or a chat
         presence indicator. It does not modify your power plan, and releases everything on exit.
       </p>
     </>

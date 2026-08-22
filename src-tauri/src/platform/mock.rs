@@ -6,7 +6,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use super::{ForegroundMonitor, PowerGuard, PowerSource, ProcessMonitor, Result};
+use super::{ForegroundMonitor, InputInjector, PowerGuard, PowerSource, ProcessMonitor, Result};
 use crate::core::rule::NotifState;
 
 #[derive(Default)]
@@ -83,6 +83,34 @@ pub struct NoopPowerSource;
 impl PowerSource for NoopPowerSource {
     fn power_status(&self) -> (bool, u8) {
         (true, 100)
+    }
+}
+
+/// No-op injector for non-Windows builds — synthesizes nothing.
+#[derive(Default)]
+pub struct NoopInjector;
+impl InputInjector for NoopInjector {
+    fn virtual_jiggle(&self) -> Result<()> {
+        Ok(())
+    }
+    fn key(&self, _vk: u16) -> Result<()> {
+        Ok(())
+    }
+}
+
+/// Test double: counts injections.
+#[derive(Clone, Default)]
+pub struct MockInjector {
+    pub jiggles: Arc<Mutex<u32>>,
+}
+impl InputInjector for MockInjector {
+    fn virtual_jiggle(&self) -> Result<()> {
+        *self.jiggles.lock().unwrap() += 1;
+        Ok(())
+    }
+    fn key(&self, _vk: u16) -> Result<()> {
+        *self.jiggles.lock().unwrap() += 1;
+        Ok(())
     }
 }
 

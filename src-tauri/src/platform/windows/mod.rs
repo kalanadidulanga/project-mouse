@@ -1,6 +1,7 @@
 //! Windows implementations of the platform traits.
 
 pub mod foreground;
+pub mod input;
 pub mod load;
 pub mod power;
 pub mod process;
@@ -26,10 +27,8 @@ pub fn local_time() -> (u8, u16) {
     (weekday, minutes)
 }
 
-/// System idle time in ms (`GetLastInputInfo`). Both values compared as u32 with wrapping, and the
-/// result clamped, per WINDOWS-API gotcha 1 (49-day wrap + non-monotonic `dwTime`).
-pub fn system_idle_ms() -> u64 {
-    use windows::Win32::System::SystemInformation::GetTickCount;
+/// Raw `GetLastInputInfo.dwTime` (u32) — same clock domain as `tick_now`.
+pub fn last_input_tick() -> u32 {
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
     let mut lii = LASTINPUTINFO {
         cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32,
@@ -37,13 +36,24 @@ pub fn system_idle_ms() -> u64 {
     };
     unsafe {
         let _ = GetLastInputInfo(&mut lii);
-        let raw = GetTickCount().wrapping_sub(lii.dwTime);
-        const SANITY_MAX: u32 = 1000 * 60 * 60 * 24 * 7; // a week
-        if raw > SANITY_MAX {
-            0
-        } else {
-            raw as u64
-        }
+    }
+    lii.dwTime
+}
+
+/// Raw `GetTickCount` (u32).
+pub fn tick_now() -> u32 {
+    use windows::Win32::System::SystemInformation::GetTickCount;
+    unsafe { GetTickCount() }
+}
+
+/// System idle time in ms — clamped per WINDOWS-API gotcha 1 (49-day wrap + non-monotonic dwTime).
+pub fn system_idle_ms() -> u64 {
+    let raw = tick_now().wrapping_sub(last_input_tick());
+    const SANITY_MAX: u32 = 1000 * 60 * 60 * 24 * 7;
+    if raw > SANITY_MAX {
+        0
+    } else {
+        raw as u64
     }
 }
 

@@ -7,11 +7,13 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 
 use crate::core::engine::Engine;
+use crate::core::input_engine::InputEngine;
 use crate::core::modes::WakeMode;
 use crate::core::rule::{Profile, Rule};
 use crate::{logging, platform};
 
 type SharedEngine = Arc<Mutex<Engine>>;
+type SharedInput = Arc<Mutex<InputEngine>>;
 
 fn mode_str(m: WakeMode) -> &'static str {
     match m {
@@ -46,6 +48,9 @@ pub struct Diagnostics {
     pub reason: String,
     pub memory_mb: f64,
     pub system_idle_secs: u64,
+    pub human_idle_secs: u64,
+    pub input_enabled: bool,
+    pub input_blocked: bool,
 }
 
 #[tauri::command]
@@ -75,8 +80,9 @@ pub fn resume_all(engine: State<'_, SharedEngine>) {
 }
 
 #[tauri::command]
-pub fn get_diagnostics(engine: State<'_, SharedEngine>) -> Diagnostics {
+pub fn get_diagnostics(engine: State<'_, SharedEngine>, input: State<'_, SharedInput>) -> Diagnostics {
     let m = engine.lock().unwrap().mode();
+    let ie = input.lock().unwrap();
     let reason = match m {
         WakeMode::Off => "Not holding anything.".to_string(),
         WakeMode::KeepRunning => "Keeping the system awake; the screen may still sleep.".to_string(),
@@ -89,8 +95,17 @@ pub fn get_diagnostics(engine: State<'_, SharedEngine>) -> Diagnostics {
         lock_blocked: m == WakeMode::KeepPresenting,
         reason,
         memory_mb: platform::working_set_bytes() as f64 / 1_000_000.0,
-        system_idle_secs: platform::system_idle_ms() / 1000,
+        system_idle_secs: (ie.system_idle_ms / 1000) as u64,
+        human_idle_secs: (ie.human_idle_ms / 1000) as u64,
+        input_enabled: ie.enabled(),
+        input_blocked: ie.enabled() && ie.blocked,
     }
+}
+
+#[tauri::command]
+pub fn set_input_enabled(app: AppHandle, input: State<'_, SharedInput>, enabled: bool) {
+    input.lock().unwrap().set_enabled(enabled);
+    crate::persist_current(&app);
 }
 
 #[tauri::command]

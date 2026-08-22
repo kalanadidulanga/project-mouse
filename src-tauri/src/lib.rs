@@ -21,6 +21,7 @@ use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 use crate::config::{model::Config, store};
 use crate::core::engine::Engine;
+use crate::core::input_engine::InputEngine;
 use crate::core::modes::WakeMode;
 use crate::core::rule::{Condition, Profile, Rule};
 use crate::platform::PowerGuard;
@@ -35,6 +36,7 @@ static PANIC_GUARD: OnceLock<Arc<dyn PowerGuard>> = OnceLock::new();
 static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
 type SharedEngine = Arc<Mutex<Engine>>;
+type SharedInput = Arc<Mutex<InputEngine>>;
 
 /// Where to persist mode, and whether saving is allowed. Saving is disabled when the on-disk
 /// config was corrupt, so we never overwrite a file the user may want to recover (FEATURES D8).
@@ -118,6 +120,8 @@ pub(crate) fn persist_current(app: &tauri::AppHandle) {
         let e = engine.lock().unwrap();
         (e.manual(), e.profile().clone())
     };
+    let input = app.state::<SharedInput>();
+    let input_enabled = input.lock().unwrap().enabled();
     let p = app.state::<Mutex<Persist>>();
     let p = p.lock().unwrap();
     if !p.enabled {
@@ -127,6 +131,7 @@ pub(crate) fn persist_current(app: &tauri::AppHandle) {
         mode,
         active_profile: profile.id.clone(),
         profiles: vec![profile],
+        input_enabled,
         ..Config::default()
     };
     if let Err(e) = store::save_atomic(&p.path, &cfg) {
@@ -170,11 +175,11 @@ pub fn run() {
     // Restore last manual mode + active profile; a corrupt config disables saving so it is
     // preserved (FEATURES D8).
     let cfg_path = store::resolve_config_path();
-    let (initial_mode, initial_profile, save_enabled) = match store::load(&cfg_path) {
-        Ok(c) => (c.mode, c.active().cloned(), true),
+    let (initial_mode, initial_profile, initial_input, save_enabled) = match store::load(&cfg_path) {
+        Ok(c) => (c.mode, c.active().cloned(), c.input_enabled, true),
         Err(e) => {
             tracing::error!("config load failed ({e}); starting Off and preserving the file");
-            (WakeMode::Off, None, false)
+            (WakeMode::Off, None, false, false)
         }
     };
 
@@ -188,6 +193,11 @@ pub fn run() {
         engine.set_profile(profile);
     }
     let engine: SharedEngine = Arc::new(Mutex::new(engine));
+
+    let mut input_engine = InputEngine::new(platform.input.clone(), platform::tick_now());
+    input_engine.set_enabled(initial_input);
+    let input_engine: SharedInput = Arc::new(Mutex::new(input_engine));
+
     let sampler = Arc::new(Sampler::new(
         platform.processes.clone(),
         platform.foreground.clone(),
@@ -221,6 +231,7 @@ pub fn run() {
                 .build(),
         )
         .manage(engine.clone())
+        .manage(input_engine.clone())
         .manage(Mutex::new(Persist { path: cfg_path, enabled: save_enabled }))
         .invoke_handler(tauri::generate_handler![
             ipc::get_state,
@@ -233,6 +244,7 @@ pub fn run() {
             ipc::upsert_rule,
             ipc::delete_rule,
             ipc::set_rule_enabled,
+            ipc::set_input_enabled,
         ])
         .on_window_event(|window, event| {
             // Destroy the webview on close — never hide (ARCHITECTURE §3). This returns the
@@ -301,24 +313,39 @@ pub fn run() {
 
             // Scheduler thread: owns nothing but a clone; ticks, evaluates, reconciles.
             let sched_engine = engine.clone();
+            let sched_input = input_engine.clone();
             let sched_sampler = sampler.clone();
             let sched_app = app.handle().clone();
             std::thread::spawn(move || {
                 let mut last_mode: Option<WakeMode> = None;
+                let mut last_blocked = false;
                 timing::ticker::run_loop(1000, 200, move || {
                     if SHUTDOWN.load(Ordering::SeqCst) {
                         return false;
                     }
+                    // Phase 1: reconcile the power engine against desired state.
                     let snap = sched_sampler.snapshot();
                     let mode = {
                         let mut e = sched_engine.lock().unwrap();
                         e.tick(&snap);
                         e.mode()
                     };
-                    if last_mode != Some(mode) {
+                    // Phase 2: the input engine (off unless the user enabled it).
+                    let blocked = {
+                        let mut ie = sched_input.lock().unwrap();
+                        ie.tick(platform::last_input_tick(), platform::tick_now());
+                        ie.enabled() && ie.blocked
+                    };
+                    if last_mode != Some(mode) || last_blocked != blocked {
                         last_mode = Some(mode);
+                        last_blocked = blocked;
                         if let Some(tray) = sched_app.tray_by_id("main") {
-                            let _ = tray.set_tooltip(Some(tooltip_for(mode)));
+                            let tip = if blocked {
+                                "project-mouse — input blocked (an elevated window has focus)"
+                            } else {
+                                tooltip_for(mode)
+                            };
+                            let _ = tray.set_tooltip(Some(tip));
                         }
                         // Notify the UI only when a window is actually alive (ARCHITECTURE §8).
                         if sched_app.get_webview_window("main").is_some() {
