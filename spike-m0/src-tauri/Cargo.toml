@@ -1,0 +1,34 @@
+[package]
+name = "spike-m0"
+version = "0.1.0"
+description = "project-mouse M0 spike — THROWAWAY. Proves destroy()-frees-memory and PowerRequestExecutionRequired."
+authors = ["you"]
+edition = "2021"
+
+[lib]
+name = "spike_m0_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", default-features = false, features = ["wry", "common-controls-v6", "tray-icon", "image-ico"] }
+
+[dependencies.windows]
+version = "0.62"
+features = [
+  "Win32_Foundation",
+  "Win32_System_Power",
+  "Win32_System_Threading",
+  "Win32_System_SystemServices",
+  "Win32_System_ProcessStatus",
+]
+
+# ponytail: mirrors ARCHITECTURE.md §10 so the memory/size numbers we record are the ones the real build will produce.
+[profile.release]
+opt-level     = "z"
+lto           = "fat"
+codegen-units = 1
+panic         = "abort"
+strip         = true
