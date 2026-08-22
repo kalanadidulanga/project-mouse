@@ -25,3 +25,36 @@ pub fn local_time() -> (u8, u16) {
     let minutes = (st.wHour * 60 + st.wMinute) as u16;
     (weekday, minutes)
 }
+
+/// System idle time in ms (`GetLastInputInfo`). Both values compared as u32 with wrapping, and the
+/// result clamped, per WINDOWS-API gotcha 1 (49-day wrap + non-monotonic `dwTime`).
+pub fn system_idle_ms() -> u64 {
+    use windows::Win32::System::SystemInformation::GetTickCount;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
+    let mut lii = LASTINPUTINFO {
+        cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32,
+        dwTime: 0,
+    };
+    unsafe {
+        let _ = GetLastInputInfo(&mut lii);
+        let raw = GetTickCount().wrapping_sub(lii.dwTime);
+        const SANITY_MAX: u32 = 1000 * 60 * 60 * 24 * 7; // a week
+        if raw > SANITY_MAX {
+            0
+        } else {
+            raw as u64
+        }
+    }
+}
+
+/// Working-set bytes (`GetProcessMemoryInfo`) for the memory readout.
+pub fn working_set_bytes() -> u64 {
+    use windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
+    use windows::Win32::System::Threading::GetCurrentProcess;
+    unsafe {
+        let mut c = PROCESS_MEMORY_COUNTERS::default();
+        let cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
+        let _ = GetProcessMemoryInfo(GetCurrentProcess(), &mut c, cb);
+        c.WorkingSetSize as u64
+    }
+}

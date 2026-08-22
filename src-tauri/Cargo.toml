@@ -36,6 +36,7 @@ features = [
   "Win32_System_Diagnostics_ToolHelp",
   "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",
+  "Win32_UI_Input_KeyboardAndMouse",
 ]
 
 # ARCHITECTURE.md §10

@@ -3,6 +3,7 @@
 
 mod config;
 mod core;
+mod ipc;
 mod logging;
 mod platform;
 mod power;
@@ -14,8 +15,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
-use tauri::tray::TrayIconBuilder;
-use tauri::{Manager, Wry};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{Emitter, Manager, Wry};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 use crate::config::{model::Config, store};
@@ -83,7 +84,25 @@ fn profile_from_args() -> Option<Profile> {
     Some(p)
 }
 
-fn set_manual(app: &tauri::AppHandle, mode: WakeMode) {
+/// Create the settings window on demand (reusing the declared `create:false` config), or focus it
+/// if it already exists. Destroyed — not hidden — on close (ARCHITECTURE §3).
+fn open_window(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.set_focus();
+        return;
+    }
+    match app.config().app.windows.iter().find(|w| w.label == "main").cloned() {
+        Some(cfg) => match tauri::WebviewWindowBuilder::from_config(app, &cfg) {
+            Ok(b) => {
+                let _ = b.build();
+            }
+            Err(e) => tracing::error!("window build error: {e}"),
+        },
+        None => tracing::error!("no 'main' window config"),
+    }
+}
+
+pub(crate) fn set_manual(app: &tauri::AppHandle, mode: WakeMode) {
     app.state::<SharedEngine>().lock().unwrap().set_manual(mode);
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_tooltip(Some(tooltip_for(mode)));
@@ -181,6 +200,21 @@ pub fn run() {
         )
         .manage(engine.clone())
         .manage(Mutex::new(Persist { path: cfg_path, enabled: save_enabled }))
+        .invoke_handler(tauri::generate_handler![
+            ipc::get_state,
+            ipc::set_mode,
+            ipc::pause_all,
+            ipc::resume_all,
+            ipc::get_diagnostics,
+            ipc::get_logs,
+        ])
+        .on_window_event(|window, event| {
+            // Destroy the webview on close — never hide (ARCHITECTURE §3). This returns the
+            // ~130 MB of WebView2 processes; the app stays alive via prevent_exit.
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                let _ = window.destroy();
+            }
+        })
         .setup(move |app| {
             let icon = app.default_window_icon().cloned().unwrap();
             let h = app.handle().clone();
@@ -215,7 +249,17 @@ pub fn run() {
                 .icon(icon)
                 .tooltip(tooltip_for(restored))
                 .menu(&menu)
-                .show_menu_on_left_click(true)
+                .show_menu_on_left_click(false) // left = open window, right = menu (UI-UX §1)
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        open_window(tray.app_handle());
+                    }
+                })
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "off" => set_manual(app, WakeMode::Off),
                     "keep_running" => set_manual(app, WakeMode::KeepRunning),
@@ -249,6 +293,10 @@ pub fn run() {
                         last_mode = Some(mode);
                         if let Some(tray) = sched_app.tray_by_id("main") {
                             let _ = tray.set_tooltip(Some(tooltip_for(mode)));
+                        }
+                        // Notify the UI only when a window is actually alive (ARCHITECTURE §8).
+                        if sched_app.get_webview_window("main").is_some() {
+                            let _ = sched_app.emit("state:changed", ());
                         }
                     }
                     true

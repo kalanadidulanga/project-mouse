@@ -94,6 +94,30 @@ pub fn local_time() -> (u8, u16) {
     }
 }
 
+/// Milliseconds since the last input the OS observed (system idle). 0 off Windows.
+pub fn system_idle_ms() -> u64 {
+    #[cfg(windows)]
+    {
+        windows::system_idle_ms()
+    }
+    #[cfg(not(windows))]
+    {
+        0
+    }
+}
+
+/// This process's working-set bytes (for the memory readout). 0 off Windows.
+pub fn working_set_bytes() -> u64 {
+    #[cfg(windows)]
+    {
+        windows::working_set_bytes()
+    }
+    #[cfg(not(windows))]
+    {
+        0
+    }
+}
+
 /// The real platform for this build. Windows in M1; other OSes get no-op guards so the crate
 /// compiles cross-platform (the boundary is proven even while only Windows is implemented).
 pub fn real() -> Platform {
