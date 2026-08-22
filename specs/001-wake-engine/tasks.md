@@ -11,50 +11,53 @@ the test suite** (constitution V).
 
 ## Phase 1 — Setup (project config)
 
-- [ ] **T001** Rewrite `src-tauri/Cargo.toml` per plan: `tauri` v2 `default-features=false` features
+- [x] **T001** Rewrite `src-tauri/Cargo.toml` per plan: `tauri` v2 `default-features=false` features
   `["wry","common-controls-v6","tray-icon","image-ico"]`; `windows` 0.62 (Power, Threading,
   SystemServices, ProcessStatus, Registry, Foundation); `tracing`, `tracing-appender`,
   `tracing-subscriber`; `serde`/`serde_json`; `tauri-plugin-single-instance`,
   `tauri-plugin-autostart`; release profile (opt-level z, lto fat, panic abort, strip).
-- [ ] **T002** Rewrite `src-tauri/tauri.conf.json` per `docs/TAURI-V2.md`: `windows:[{label:"main",
+- [x] **T002** Rewrite `src-tauri/tauri.conf.json` per `docs/TAURI-V2.md`: `windows:[{label:"main",
   create:false,...}]`, `withGlobalTauri:false`, `bundle.targets:["nsis"]`,
   `nsis.installMode:"currentUser"`, `webviewInstallMode:downloadBootstrapper`,
   `createUpdaterArtifacts` deferred to M5.
-- [ ] **T003** `src-tauri/capabilities/main.json`: enumerate permissions (no `core:default`),
-  `windows:["main"]`. `build.rs` restricts commands for `removeUnusedCommands`.
-- [ ] **T004 [P]** `logging/mod.rs`: `tracing` subscriber → rolling file (1 MB × 3), `info` default;
+- [~] **T003** `src-tauri/capabilities/main.json`: `windows:["main"]`. **M1: placeholder
+  `core:default` (no window/commands yet)** — enumerate permissions + `build.rs`
+  `removeUnusedCommands` in M5 (TAURI-V2 §9).
+- [x] **T004 [P]** `logging/mod.rs`: `tracing` subscriber → rolling file (1 MB × 3), `info` default;
   never log cursor coords at info (no coords exist yet — establish the rule).
-- [ ] **T005 [P]** Install a panic hook in `main.rs` that releases power before abort (wired to the
+- [x] **T005 [P]** Install a panic hook in `main.rs` that releases power before abort (wired to the
   guard in Phase 3).
 
 ## Phase 2 — Foundational: platform boundary + MockPlatform (BLOCKS all stories)
 
-- [ ] **T006** `platform/mod.rs`: define `PowerGuard` (`set_keep_awake(display,system)`, `release`),
+- [x] **T006** `platform/mod.rs`: define `PowerGuard` (`set_keep_awake(display,system)`, `release`),
   `AutoStart` (`is_enabled`, `set_enabled`), stub traits for later monitors, `Capabilities`, and the
   `Platform` bundle. No `#[cfg(windows)]` here.
-- [ ] **T007** `platform/mock.rs`: `MockPlatform` recording power/autostart calls, for tests.
-- [ ] **T008** `core/modes.rs`: `WakeMode { Off, KeepRunning, KeepPresenting }` with combine-by-max
+- [x] **T007** `platform/mock.rs`: `MockPlatform` recording power/autostart calls, for tests.
+- [x] **T008** `core/modes.rs`: `WakeMode { Off, KeepRunning, KeepPresenting }` with combine-by-max
   ordering (`KeepPresenting > KeepRunning > Off`).
 
 ## Phase 3 — User Story 1 (P1): keep awake from the tray  🎯 MVP
 
-- [ ] **T009 [US1]** Test (`core/`): reconciler acquires the request once for a mode, is idempotent
+- [x] **T009 [US1]** Test (`core/`): reconciler acquires the request once for a mode, is idempotent
   across repeated ticks, and clears on `Off` — against `MockPlatform`. MUST fail first.
-- [ ] **T010 [US1]** Test (`core/`): two desired contributions combine by maximum; a weaker one
+- [x] **T010 [US1]** Test (`core/`): two desired contributions combine by maximum; a weaker one
   never lowers a stronger held mode.
-- [ ] **T011 [US1]** `power/mod.rs`: desired-vs-actual reconciliation, single owner, idempotent;
+- [x] **T011 [US1]** `power/mod.rs`: desired-vs-actual reconciliation, single owner, idempotent;
   computes the reason string naming the active mode. Make T009/T010 pass.
-- [ ] **T012 [US1]** `platform/windows/power.rs`: `PowerGuard` impl — `PowerCreateRequest` +
+- [x] **T012 [US1]** `platform/windows/power.rs`: `PowerGuard` impl — `PowerCreateRequest` +
   `PowerSetRequest(SystemRequired[+ExecutionRequired][+DisplayRequired])`, `PowerClearRequest` +
   `CloseHandle`; reason string via `REASON_CONTEXT`. (Ported/cleaned from the M0 spike.)
-- [ ] **T013 [US1]** `core/state.rs` + `core/engine.rs`: `RwLock<AppState>` holding current mode;
-  1 s tick reads desired mode and calls `power.reconcile(...)`. `timing/ticker.rs`:
-  `CreateWaitableTimerExW` + 200 ms tolerable delay.
-- [ ] **T014 [US1]** `main.rs`: tray icon (Active vs Off, greyscale-distinct) + native menu (Off /
+- [x] **T013 [US1]** `core/engine.rs`: single owner holds current mode, reconciles on change.
+  **ponytail: no 1 s tick in M1 — with no conditions there is nothing to re-evaluate, so idle
+  CPU stays at zero. `timing/ticker.rs` (`CreateWaitableTimerExW` + tolerable delay) lands in M2
+  when conditions need periodic evaluation.**
+- [x] **T014 [US1]** `main.rs`: tray icon (Active vs Off, greyscale-distinct) + native menu (Off /
   Keep running / Keep presenting / Quit) + tooltip stating what is true; run loop with
   `ExitRequested{code:None}→prevent_exit`; Quit → `app.exit(0)`; scheduler owns the guard; release
   on exit + panic hook (T005).
-- [ ] **T015 [US1]** `ipc/mod.rs`: sync `get_state`, `set_mode` commands (thin over `core`).
+- [~] **T015 [US1]** `ipc/mod.rs`: sync `get_state`, `set_mode` commands. **Deferred to M3 —
+  no window/frontend caller exists in M1; the tray drives `set_mode` directly in Rust.**
 - [ ] **CHECKPOINT US1**: verify SC-001, SC-002, SC-003, SC-004 by hand + elevated `powercfg`
   (reuse the M0 elevated helper).
 

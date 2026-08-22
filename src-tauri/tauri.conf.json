@@ -10,11 +10,15 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": false,
     "windows": [
       {
+        "label": "main",
+        "create": false,
         "title": "project-mouse",
-        "width": 800,
-        "height": 600
+        "width": 640,
+        "height": 480,
+        "resizable": false
       }
     ],
     "security": {
@@ -23,13 +27,21 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "compression": "lzma",
+        "languages": ["English"]
+      },
+      "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true }
+    }
   }
 }

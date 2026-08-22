@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "M1: no window is created; permissions enumerated properly in M5 (TAURI-V2 §9)",
+  "windows": ["main"],
+  "permissions": [
+    "core:default"
+  ]
+}
