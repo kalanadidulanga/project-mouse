@@ -70,15 +70,33 @@ manual gate.
 What the spike *can* confirm now is that the request is correctly formed, held on a handle, and
 auditable by name:
 
-### T7 — `powercfg /requests` while holding
+### T7 — `powercfg /requests` while holding ✅
 
-<!-- T7_RESULT -->
-_Elevated check running…_
+Elevated, exe holding — **both** SYSTEM and EXECUTION are attributed to us by full path with our
+reason string:
 
-### T8 — clean after kill
+```
+SYSTEM:
+  [PROCESS] \Device\HarddiskVolume6\KayD\...\spike-m0.exe
+  project-mouse M0 spike - Keep running
+EXECUTION:
+  [PROCESS] \Device\HarddiskVolume6\KayD\...\spike-m0.exe
+  project-mouse M0 spike - Keep running
+```
 
-<!-- T8_RESULT -->
-_Elevated check running…_
+- Attributed **by name** with a human-readable reason — the audit/trust signal in FEATURES A3.
+  An IT admin can see exactly what we hold and why. ✅
+- **EXECUTION is populated** — `PowerRequestExecutionRequired` is genuinely registered. This flag
+  has *no* `SetThreadExecutionState` equivalent, and missing it is the root of every competitor's
+  Modern Standby bug. The API path is proven correct here; the S0-over-8h *behaviour* is still T5
+  (manual).
+
+### T8 — clean after kill ✅
+
+After `taskkill /F` (no exit handler or panic hook runs), every category reads `None.` — the
+request is gone. Windows releases the handle-scoped request on process death even on a forced
+kill. This is the "releases everything on exit" promise (A3) holding in the **worst** case: a
+hard crash. ✅
 
 ---
 
@@ -92,8 +110,9 @@ _Elevated check running…_
 | 4 | Same with `hide()`, documented | ✅ 7 procs / ~325 MB resident forever |
 | 5 | S0 laptop, lid closed, 8 h reachable | ⏳ MANUAL — physical S0 hardware, release checklist |
 | 6 | Same with `SetThreadExecutionState` (comparison) | ⏳ MANUAL (with T5) |
-| 7 | `powercfg /requests` shows our reason string | see T7 above |
-| 8 | Kill process → `powercfg /requests` clean | see T8 above |
+| 7 | `powercfg /requests` shows our reason string | ✅ SYSTEM + EXECUTION, attributed by name + reason |
+| 8 | Kill process → `powercfg /requests` clean | ✅ all `None.` after `taskkill /F` |
 
-**Decision: proceed to M1 on Tauri + windows-rs.** Feed the two caveats forward:
+**Decision: proceed to M1 on Tauri + windows-rs.** Every automatable criterion is green; only the
+physical S0 tests (T5/T6) remain, on the release checklist. Feed the two caveats forward:
 private-working-set measurement and `EmptyWorkingSet` trim.
