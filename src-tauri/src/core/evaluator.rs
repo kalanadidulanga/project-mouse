@@ -64,6 +64,23 @@ pub fn desired_mode(profile: &Profile, s: &Snapshot) -> WakeMode {
     )
 }
 
+/// Seconds until the soonest deadline among enabled rules that carry an `ExpiryAt`.
+/// `None` when nothing is counting down. Drives the tray tooltip (FEATURES B3 / 002 T020).
+pub fn soonest_expiry_secs(profile: &Profile, s: &Snapshot) -> Option<u64> {
+    profile
+        .rules
+        .iter()
+        .filter(|r| r.enabled)
+        .flat_map(|r| r.conditions.iter())
+        .filter_map(|c| match c {
+            // `checked_sub` rather than a subtraction: an elapsed deadline holds nothing, and a
+            // wrapped countdown in the tooltip would be a 584-billion-year lie.
+            Condition::ExpiryAt(deadline) => deadline.checked_sub(s.epoch_secs).filter(|d| *d > 0),
+            _ => None,
+        })
+        .min()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -72,6 +89,75 @@ mod tests {
 
     fn snap() -> Snapshot {
         Snapshot::default()
+    }
+
+    mod expiry {
+        use super::*;
+
+        fn at(secs: u64) -> Snapshot {
+            Snapshot {
+                epoch_secs: secs,
+                ..Snapshot::default()
+            }
+        }
+        fn expiring(id: &str, enabled: bool, deadline: u64) -> Rule {
+            Rule {
+                id: id.into(),
+                name: id.into(),
+                enabled,
+                conditions: vec![ExpiryAt(deadline)],
+                mode: KeepRunning,
+            }
+        }
+
+        #[test]
+        fn nothing_counting_down_is_none() {
+            let p = Profile::new("p", "p");
+            assert_eq!(soonest_expiry_secs(&p, &at(1_000)), None);
+        }
+
+        #[test]
+        fn a_disabled_timer_does_not_count_down() {
+            let mut p = Profile::new("p", "p");
+            p.rules.push(expiring("t", false, 1_300));
+            assert_eq!(soonest_expiry_secs(&p, &at(1_000)), None);
+        }
+
+        #[test]
+        fn reports_seconds_remaining() {
+            let mut p = Profile::new("p", "p");
+            p.rules.push(expiring("t", true, 1_300));
+            assert_eq!(soonest_expiry_secs(&p, &at(1_000)), Some(300));
+        }
+
+        #[test]
+        fn reports_the_soonest_of_several() {
+            let mut p = Profile::new("p", "p");
+            p.rules.push(expiring("late", true, 5_000));
+            p.rules.push(expiring("soon", true, 1_060));
+            assert_eq!(soonest_expiry_secs(&p, &at(1_000)), Some(60));
+        }
+
+        /// An elapsed deadline holds nothing, so it must not show a stale or wrapped countdown.
+        #[test]
+        fn an_elapsed_deadline_is_none_not_zero_and_never_underflows() {
+            let mut p = Profile::new("p", "p");
+            p.rules.push(expiring("gone", true, 900));
+            assert_eq!(soonest_expiry_secs(&p, &at(1_000)), None);
+        }
+
+        #[test]
+        fn a_rule_without_an_expiry_is_ignored() {
+            let mut p = Profile::new("p", "p");
+            p.rules.push(Rule {
+                id: "plain".into(),
+                name: "plain".into(),
+                enabled: true,
+                conditions: vec![OnACPower],
+                mode: KeepRunning,
+            });
+            assert_eq!(soonest_expiry_secs(&p, &at(1_000)), None);
+        }
     }
     fn rule(mode: crate::core::modes::WakeMode, conditions: Vec<Condition>) -> Rule {
         Rule {

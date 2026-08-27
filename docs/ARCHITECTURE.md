@@ -204,7 +204,7 @@ src-tauri/src/
 │   ├── mod.rs               desired-vs-actual reconciliation, one owner
 │   ├── request.rs           PowerCreateRequest handle, reason strings
 │   ├── modes.rs             KeepRunning / KeepPresenting → request sets
-│   └── inspect.rs           enumerate OTHER processes' power requests (E1)
+│                             (E1's read lives in platform/windows/inspect.rs — see §8)
 │
 ├── input/                   ← the opt-in engine (FEATURES Part C)
 │   ├── jiggle.rs            virtual jiggle — the default action
@@ -555,10 +555,28 @@ It also carries the two idle clocks and the current power state, which makes it 
 endpoint behind [FEATURES E2](FEATURES.md#e2-live-idle-clocks) and
 [E3](FEATURES.md#e3-effect-readout).
 
-`power::inspect` deserves a note: it enumerates the power requests held by **other** processes,
-which is what backs [FEATURES E1](FEATURES.md#e1-why-is-my-pc-awake) — the
-"why is my PC awake?" panel. It is read-only, it touches nothing, and it is the one feature in
-this application that is useful to someone who never turns the main function on.
+`why_awake` deserves a note, because it changed shape once it met the OS.
+
+The design was `power::inspect` enumerating the power requests held by **other** processes, and
+naming them — which is what [FEATURES E1](FEATURES.md#e1-why-is-my-pc-awake) describes. Measured
+on Windows 11 26200, unelevated, that is not available to us:
+`CallNtPowerInformation(GetPowerRequestList)` returns `STATUS_INVALID_PARAMETER` at every buffer
+size while sibling information levels succeed, and `powercfg /requests` refuses to run at all
+without an elevated prompt. Since this app never asks for admin, there is nothing to enumerate.
+
+What **is** readable unelevated is `CallNtPowerInformation(SystemExecutionState)` — an
+`EXECUTION_STATE` aggregate. It cannot be netted against our own request: whether a
+`PowerSetRequest` handle even appears in it could not be verified, so subtracting would risk
+suppressing a real third-party request exactly when we hold the same kind. The panel therefore
+reports two things side by side — what we hold (known exactly) and what Windows will show an
+unelevated process (verbatim, labelled a hint rather than an inventory) — and hands over the
+elevated command that will name the holder.
+
+So the read is a **platform capability behind a trait** (`PowerInspector`), not a power-engine
+component: it lives at `platform/windows/inspect.rs`, and the pure reduction it feeds is
+`core/awake.rs`. Still read-only, still touches nothing, still the one feature useful to someone
+who never turns the main function on. Full measurements:
+`specs/003-settings-ui/research.md` R1.
 
 ---
 

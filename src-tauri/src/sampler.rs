@@ -6,14 +6,17 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::core::rule::NotifState;
 use crate::core::snapshot::Snapshot;
-use crate::platform::{self, ForegroundMonitor, PowerSource, ProcessMonitor};
+use crate::platform::{self, ForegroundMonitor, PowerSource, ProcessMonitor, SessionMonitor};
 
 pub struct Sampler {
     processes: Arc<dyn ProcessMonitor>,
     foreground: Arc<dyn ForegroundMonitor>,
     power_source: Arc<dyn PowerSource>,
+    session: Arc<dyn SessionMonitor>,
     proc_cache: Mutex<(Option<Instant>, Vec<String>)>,
     proc_interval: Duration,
+    /// The most recent sample, so a `#[tauri::command]` can read live state without re-sampling.
+    last: Mutex<Snapshot>,
 }
 
 impl Sampler {
@@ -21,14 +24,22 @@ impl Sampler {
         processes: Arc<dyn ProcessMonitor>,
         foreground: Arc<dyn ForegroundMonitor>,
         power_source: Arc<dyn PowerSource>,
+        session: Arc<dyn SessionMonitor>,
     ) -> Self {
         Self {
             processes,
             foreground,
             power_source,
+            session,
             proc_cache: Mutex::new((None, Vec::new())),
             proc_interval: Duration::from_secs(5),
+            last: Mutex::new(Snapshot::default()),
         }
+    }
+
+    /// The most recent snapshot the scheduler took. Never samples the OS itself.
+    pub fn last(&self) -> Snapshot {
+        self.last.lock().unwrap().clone()
     }
 
     fn process_names(&self) -> Vec<String> {
@@ -50,7 +61,7 @@ impl Sampler {
         let notification_state = self.foreground.notification_state();
         let foreground_exe = self.foreground.foreground_app();
         let (on_ac, battery_pct) = self.power_source.power_status();
-        Snapshot {
+        let snap = Snapshot {
             epoch_secs,
             weekday,
             minutes,
@@ -63,7 +74,10 @@ impl Sampler {
             notification_state,
             on_ac,
             battery_pct,
+            remote_session: self.session.is_remote_session(),
             ..Default::default()
-        }
+        };
+        *self.last.lock().unwrap() = snap.clone();
+        snap
     }
 }

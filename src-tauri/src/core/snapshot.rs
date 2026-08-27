@@ -20,9 +20,10 @@ pub struct Snapshot {
     pub notification_state: NotifState,
     pub on_ac: bool,
     pub battery_pct: u8,
-    // Sampled for conditions that arrive later: remote-session (B6), CPU load (B4), idle gating (M4).
-    #[allow(dead_code)]
+    /// True in an RDP / Citrix / Horizon session (B6). Surfaced in diagnostics; a `RemoteSession`
+    /// rule condition is M6.
     pub remote_session: bool,
+    // Sampled for conditions that arrive later: CPU load (B4).
     #[allow(dead_code)]
     pub cpu_pct: u8,
     #[allow(dead_code)]

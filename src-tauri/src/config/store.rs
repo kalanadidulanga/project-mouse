@@ -69,7 +69,10 @@ fn dir_is_writable(dir: &Path) -> bool {
 pub fn load(path: &Path) -> Result<Config, ConfigError> {
     match std::fs::read_to_string(path) {
         Ok(s) => {
-            let value: serde_json::Value = serde_json::from_str(&s)
+            // Strip a UTF-8 BOM: Notepad and PowerShell's `-Encoding utf8` both write one, and
+            // serde_json reads it as corruption — which disables saving and looks like data loss.
+            let s = s.strip_prefix('\u{FEFF}').unwrap_or(&s);
+            let value: serde_json::Value = serde_json::from_str(s)
                 .map_err(|e| ConfigError::Parse(format!("invalid JSON: {e}")))?;
             migrate::migrate(value).map_err(ConfigError::Parse)
         }
@@ -108,6 +111,19 @@ mod tests {
     fn temp_path() -> PathBuf {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         std::env::temp_dir().join(format!("pm-cfg-test-{}-{n}.json", std::process::id()))
+    }
+
+    /// Notepad and PowerShell's `-Encoding utf8` both write a UTF-8 BOM. `serde_json` rejects it,
+    /// which turned a hand-edited config into "corrupt, saving disabled" — a bad trade for three
+    /// bytes. Found by feeding the app a PowerShell-written config during the M3 quickstart walk.
+    #[test]
+    fn a_utf8_bom_does_not_make_a_config_corrupt() {
+        let path = temp_path();
+        let json = r#"{"schema_version":2,"mode":"KeepRunning"}"#;
+        std::fs::write(&path, format!("\u{FEFF}{json}")).unwrap();
+        let cfg = load(&path).expect("a BOM is an encoding artefact, not corruption");
+        assert_eq!(cfg.mode, WakeMode::KeepRunning);
+        let _ = std::fs::remove_file(&path);
     }
 
     // --- path detection (US2) ---

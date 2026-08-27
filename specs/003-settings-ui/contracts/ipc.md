@@ -29,11 +29,12 @@ Every command is **synchronous** (TAURI-V2 §0.2 — tokio stays dormant) and a 
   "system_held": false,
   "display_held": true,
   "away_mode_held": false,
-  "ours": "Off",
-  "others_hold_system": false,
-  "others_hold_display": true
+  "ours": "Off"
 }
 ```
+
+The `*_held` flags are Windows' aggregate **verbatim** — never adjusted for `ours`. See
+[research.md](../research.md) R1/T014 for why the adjustment was cut.
 
 ## The elevated-command affordance
 

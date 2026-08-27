@@ -6,7 +6,10 @@
 
 use std::sync::{Arc, Mutex};
 
-use super::{ForegroundMonitor, InputInjector, PowerGuard, PowerSource, ProcessMonitor, Result};
+use super::{
+    ForegroundMonitor, InputInjector, PowerGuard, PowerInspector, PowerSource, ProcessMonitor,
+    Result, SessionMonitor,
+};
 use crate::core::rule::NotifState;
 
 #[derive(Default)]
@@ -131,5 +134,40 @@ impl MockProcessMonitor {
 impl ProcessMonitor for MockProcessMonitor {
     fn running_process_names(&self) -> Vec<String> {
         self.names.lock().unwrap().clone()
+    }
+}
+
+/// No-op inspector for non-Windows builds — reports the aggregate as unreadable, which is the
+/// truthful answer where we have not implemented the read.
+#[derive(Default)]
+pub struct NoopPowerInspector;
+impl PowerInspector for NoopPowerInspector {
+    fn execution_state(&self) -> Option<u32> {
+        None
+    }
+}
+
+/// No-op session monitor for non-Windows builds — assume a local session.
+#[derive(Default)]
+pub struct NoopSessionMonitor;
+impl SessionMonitor for NoopSessionMonitor {
+    fn is_remote_session(&self) -> bool {
+        false
+    }
+}
+
+/// Test double: returns whatever aggregate the test sets, including `None` for a refused read.
+#[derive(Clone, Default)]
+pub struct MockPowerInspector {
+    state: Arc<Mutex<Option<u32>>>,
+}
+impl MockPowerInspector {
+    pub fn set(&self, state: Option<u32>) {
+        *self.state.lock().unwrap() = state;
+    }
+}
+impl PowerInspector for MockPowerInspector {
+    fn execution_state(&self) -> Option<u32> {
+        *self.state.lock().unwrap()
     }
 }

@@ -518,10 +518,29 @@ Cheap, unbuilt by everyone, and the strongest trust signal available.
 [PowerToys #44501](https://github.com/microsoft/powertoys/issues/44501) asks for exactly this.
 `powercfg /requests` answers it and essentially no normal user knows the command exists.
 
-A panel listing every process currently holding a power request, in plain language, with the
-offender named. Worth installing the software for even if you never turn the main function on —
-and it demonstrates, inside the product, the transparency we are asking administrators to
+A panel answering, in plain language, whether anything is holding a power request — and whether
+that anything is us. Worth installing the software for even if you never turn the main function
+on, and it demonstrates, inside the product, the transparency we are asking administrators to
 trust us on.
+
+**Naming the offender needs admin, and we do not take admin.** Windows refuses
+`GetPowerRequestList` to an unelevated process outright, and `powercfg /requests` will not run
+without an elevated prompt (measured — see [WINDOWS-API](WINDOWS-API.md#read-other-processes-power-requests)).
+What we *can* read is the `EXECUTION_STATE` aggregate. The panel states two things separately,
+because they have different confidence and merging them would hide information:
+
+1. **What we hold** — exact. *"project-mouse is keeping this machine awake and the display on."*
+   / *"project-mouse is holding nothing."*
+2. **What Windows reports** — verbatim. *"Windows also reports a request on this machine to keep
+   the display on."* / *"Windows reports no other request it will show us."* / *"Windows would
+   not tell us what else is holding a power request."*
+
+…followed by `powercfg /requests` as copyable text, labelled as needing an elevated prompt. The
+panel never runs it, and it labels line 2 as a hint rather than an inventory — it does not name
+the program and does not cover every kind of request.
+
+Saying plainly what we cannot see **is** the feature: a tool that asks an administrator to trust
+its reporting does not get to overclaim in its own diagnostics.
 
 ## E2. Live idle clocks
 

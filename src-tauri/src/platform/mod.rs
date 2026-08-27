@@ -46,6 +46,18 @@ pub trait ForegroundMonitor: Send + Sync {
     fn notification_state(&self) -> NotifState;
 }
 
+/// The machine-wide `EXECUTION_STATE` aggregate, for "Why is my PC awake?" (FEATURES E1).
+/// `None` means the OS refused the read — which is not the same as "nothing is held", and the
+/// two must never be collapsed.
+pub trait PowerInspector: Send + Sync {
+    fn execution_state(&self) -> Option<u32>;
+}
+
+/// Whether this is a remote session (RDP / Citrix / Horizon). FEATURES B6.
+pub trait SessionMonitor: Send + Sync {
+    fn is_remote_session(&self) -> bool;
+}
+
 /// AC line status + battery percent. FEATURES B5.
 pub trait PowerSource: Send + Sync {
     /// `(on_ac, battery_percent)` where percent is 0..=100 (100 when unknown/no battery).
@@ -82,6 +94,8 @@ pub struct Platform {
     pub foreground: Arc<dyn ForegroundMonitor>,
     pub power_source: Arc<dyn PowerSource>,
     pub input: Arc<dyn InputInjector>,
+    pub inspector: Arc<dyn PowerInspector>,
+    pub session: Arc<dyn SessionMonitor>,
     #[allow(dead_code)] // consumed by the capability-aware UI in M3
     pub caps: Capabilities,
 }
@@ -173,6 +187,8 @@ pub fn real() -> Platform {
             foreground: Arc::new(windows::foreground::WindowsForegroundMonitor::new()),
             power_source: Arc::new(windows::load::WindowsPowerSource::new()),
             input: Arc::new(windows::input::WindowsInputInjector::new()),
+            inspector: Arc::new(windows::inspect::WindowsPowerInspector::new()),
+            session: Arc::new(windows::session::WindowsSessionMonitor::new()),
             caps: Capabilities {
                 can_prevent_system_sleep: true,
                 can_prevent_display_sleep: true,
@@ -188,6 +204,8 @@ pub fn real() -> Platform {
             foreground: Arc::new(mock::NoopForegroundMonitor::default()),
             power_source: Arc::new(mock::NoopPowerSource::default()),
             input: Arc::new(mock::NoopInjector::default()),
+            inspector: Arc::new(mock::NoopPowerInspector::default()),
+            session: Arc::new(mock::NoopSessionMonitor::default()),
             caps: Capabilities {
                 can_prevent_system_sleep: false,
                 can_prevent_display_sleep: false,

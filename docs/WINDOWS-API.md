@@ -130,22 +130,44 @@ Mode mapping is in [FEATURES A1](FEATURES.md#a1-the-two-modes).
 
 ### Read *other* processes' power requests
 
-`PowerGetActiveScheme` is not what you want here. The user-facing answer to "why is my PC
-awake?" is what `powercfg /requests` prints, and it comes from
-`CallNtPowerInformation(PowerRequestInfo, ...)` — an undocumented-but-stable information class
-that returns a `POWER_REQUEST_LIST` of requesters and reasons.
+> **Superseded by measurement.** This section originally recommended
+> `CallNtPowerInformation(GetPowerRequestList)` and predicted a *partial* list unelevated. It is
+> not partial — it is nothing. Measured on Windows 11 Pro 26200, unelevated, 2026-08-28:
 
-Two honest caveats before building on it:
+| Probe | Result |
+|---|---|
+| `powercfg /requests` | exit 1 — *"requires administrator privileges"*. No partial output. |
+| `CallNtPowerInformation(GetPowerRequestList = 45)`, out-buffer 0 / 16 B / 1 KiB / 64 KiB | `STATUS_INVALID_PARAMETER` (0xC000000D) at every size |
+| Controls — `LastSleepTime`(15), `LastWakeTime`(14), `SystemPowerInformation`(12) | `STATUS_SUCCESS` |
+| `CallNtPowerInformation(SystemExecutionState = 16)` | `STATUS_SUCCESS` |
 
-- The structure is not in the Windows SDK headers and has to be declared by hand. It has been
-  stable across Windows versions, but treat it as an implementation detail and degrade
-  gracefully if the shape changes.
-- **Full detail requires elevation**, which this app deliberately never has. Unelevated, expect
-  a partial list. Design [FEATURES E1](FEATURES.md#e1-why-is-my-pc-awake) to show
-  what it can see and say plainly that a complete list needs an elevated
-  `powercfg /requests` — with a copy button for the command. That is a better product than
-  silently showing an incomplete list, and it avoids asking for admin rights we promised never
-  to need.
+The control row is the one that settles it: three sibling information levels succeed with
+identical argument shapes, so level 45 is a **privilege gate**, not a buffer-size bug. There is
+no `POWER_REQUEST_LIST` to hand-declare, because we never receive one — which also disposes of
+the memory-safety hazard of parsing an undocumented struct of relative offsets in `unsafe`.
+
+### What to use instead
+
+`CallNtPowerInformation(SystemExecutionState, ...)` → a `u32` `EXECUTION_STATE` bitmask:
+`ES_SYSTEM_REQUIRED` (0x1), `ES_DISPLAY_REQUIRED` (0x2), `ES_AWAYMODE_REQUIRED` (0x40). It is
+documented, fixed-size, and safe to read, and it aggregates beyond the calling process — the
+probe read `0x02` while holding nothing itself.
+
+**Do not net it against your own request.** Whether a `PowerCreateRequest`/`PowerSetRequest`
+handle appears in this aggregate could not be verified: on the test machine the aggregate sat
+saturated at `0x03`, so no addition was observable, and the one free channel (away mode) turns out
+not to be reported there at all. Subtracting on that assumption would suppress a genuine
+third-party request precisely when we hold the same kind — the worse of the two failure modes.
+
+So report the two separately: our own state (known exactly, we made the request) and this
+aggregate (verbatim, described as a hint rather than an inventory). Naming the holder is the
+follow-up question, and [FEATURES E1](FEATURES.md#e1-why-is-my-pc-awake) answers it by handing
+over `powercfg /requests` as copyable text with the note that it needs an elevated prompt — better
+than silently showing an incomplete list, and it avoids asking for admin rights we promised never
+to need.
+
+Implementation: `platform/windows/inspect.rs` (the read) + `core/awake.rs` (the reduction).
+Full measurements: `specs/003-settings-ui/research.md` R1.
 
 ### Process enumeration
 

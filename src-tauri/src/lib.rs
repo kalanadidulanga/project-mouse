@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, Wry};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
@@ -21,8 +21,10 @@ use tauri_plugin_updater::UpdaterExt;
 
 use crate::config::{model::Config, store};
 use crate::core::engine::Engine;
+use crate::core::evaluator::soonest_expiry_secs;
 use crate::core::input_engine::{InputEngine, InputSettings};
 use crate::core::modes::WakeMode;
+use crate::core::profiles;
 use crate::core::rule::{Condition, Profile, Rule};
 use crate::platform::PowerGuard;
 use crate::sampler::Sampler;
@@ -37,6 +39,20 @@ static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
 type SharedEngine = Arc<Mutex<Engine>>;
 type SharedInput = Arc<Mutex<InputEngine>>;
+/// Every profile on disk. The engine holds one of them; this is the set (research R3).
+type SharedProfiles = Arc<Mutex<Vec<Profile>>>;
+
+/// Latched at startup: no config file existed, so the UI opens on the first-run question
+/// (spec FR-008). Cleared by the answer, never re-read from disk.
+static FIRST_RUN: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn is_first_run() -> bool {
+    FIRST_RUN.load(Ordering::SeqCst)
+}
+
+pub(crate) fn clear_first_run() {
+    FIRST_RUN.store(false, Ordering::SeqCst);
+}
 
 /// Where to persist mode, and whether saving is allowed. Saving is disabled when the on-disk
 /// config was corrupt, so we never overwrite a file the user may want to recover (FEATURES D8).
@@ -175,10 +191,20 @@ pub(crate) fn persist_current(app: &tauri::AppHandle) {
     if !p.enabled {
         return;
     }
+    // Merge the live profile into the stored collection. Writing `vec![profile]` here — as this
+    // did until 2026-08-28 — destroyed every other profile on the next save (research R3).
+    let all = match app.try_state::<SharedProfiles>() {
+        Some(state) => {
+            let mut list = state.lock().unwrap();
+            profiles::upsert(&mut list, profile.clone());
+            list.clone()
+        }
+        None => vec![profile.clone()],
+    };
     let cfg = Config {
         mode,
         active_profile: profile.id.clone(),
-        profiles: vec![profile],
+        profiles: all,
         input_enabled,
         input: input_settings,
         ..Config::default()
@@ -188,15 +214,125 @@ pub(crate) fn persist_current(app: &tauri::AppHandle) {
     }
 }
 
-fn toggle_autostart(app: &tauri::AppHandle, item: &CheckMenuItem<Wry>) {
+fn toggle_autostart(app: &tauri::AppHandle) {
     let mgr = app.autolaunch();
     let now = mgr.is_enabled().unwrap_or(false);
     match if now { mgr.disable() } else { mgr.enable() } {
         Ok(()) => {
-            let _ = item.set_checked(!now);
             tracing::info!(enabled = !now, "autostart toggled");
+            rebuild_tray_menu(app);
         }
         Err(e) => tracing::error!("autostart toggle failed: {e}"),
+    }
+}
+
+/// The whole tray menu, built from current state. Rebuilt rather than mutated: a profile list and
+/// a checkmark that must both stay truthful are cheaper to regenerate than to patch in place.
+fn build_tray_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<Wry>> {
+    let item = |id: &str, txt: &str| MenuItem::with_id(app, id, txt, true, None::<&str>);
+    let autostart = CheckMenuItem::with_id(
+        app,
+        "autostart",
+        "Start with Windows",
+        true,
+        app.autolaunch().is_enabled().unwrap_or(false),
+        None::<&str>,
+    )?;
+
+    let active_id = app
+        .try_state::<SharedEngine>()
+        .map(|e| e.lock().unwrap().profile().id.clone())
+        .unwrap_or_default();
+    let stored: Vec<Profile> = app
+        .try_state::<SharedProfiles>()
+        .map(|p| p.lock().unwrap().clone())
+        .unwrap_or_default();
+    let entries: Vec<CheckMenuItem<Wry>> = stored
+        .iter()
+        .map(|p| {
+            CheckMenuItem::with_id(
+                app,
+                format!("profile:{}", p.id),
+                &p.name,
+                true,
+                p.id == active_id,
+                None::<&str>,
+            )
+        })
+        .collect::<tauri::Result<_>>()?;
+    let refs: Vec<&dyn tauri::menu::IsMenuItem<Wry>> = entries
+        .iter()
+        .map(|i| i as &dyn tauri::menu::IsMenuItem<Wry>)
+        .collect();
+    let profiles_menu = Submenu::with_items(app, "Profile", !refs.is_empty(), &refs)?;
+
+    Menu::with_items(
+        app,
+        &[
+            &item("off", "Off")?,
+            &item("keep_running", "Keep running")?,
+            &item("keep_presenting", "Keep presenting")?,
+            &PredefinedMenuItem::separator(app)?,
+            &profiles_menu,
+            &PredefinedMenuItem::separator(app)?,
+            &autostart,
+            &item("check_update", "Check for updates…")?,
+            &PredefinedMenuItem::separator(app)?,
+            &item("quit", "Quit")?,
+        ],
+    )
+}
+
+/// Load `id` into the engine, writing the live profile back into the collection first so
+/// unsaved rule edits survive the switch.
+pub(crate) fn switch_profile(app: &tauri::AppHandle, id: &str) {
+    let (Some(engine), Some(stored)) = (
+        app.try_state::<SharedEngine>(),
+        app.try_state::<SharedProfiles>(),
+    ) else {
+        return;
+    };
+    {
+        let mut e = engine.lock().unwrap();
+        let mut list = stored.lock().unwrap();
+        profiles::upsert(&mut list, e.profile().clone());
+        match profiles::find(&list, id) {
+            Some(p) => e.set_profile(p.clone()),
+            None => {
+                tracing::warn!(%id, "switch_profile: no such profile");
+                return;
+            }
+        }
+    }
+    persist_current(app);
+    rebuild_tray_menu(app);
+}
+
+pub(crate) fn rebuild_tray_menu(app: &tauri::AppHandle) {
+    match (app.tray_by_id("main"), build_tray_menu(app)) {
+        (Some(tray), Ok(menu)) => {
+            if let Err(e) = tray.set_menu(Some(menu)) {
+                tracing::error!("tray menu update failed: {e}");
+            }
+        }
+        (_, Err(e)) => tracing::error!("tray menu build failed: {e}"),
+        _ => {}
+    }
+}
+
+/// Tooltip text: the mode, plus how long a running timer has left (002 T020).
+fn tooltip_text(mode: WakeMode, remaining: Option<u64>) -> String {
+    match remaining {
+        Some(s) => format!("{} — {} left", tooltip_for(mode), fmt_remaining(s)),
+        None => tooltip_for(mode).to_string(),
+    }
+}
+
+fn fmt_remaining(secs: u64) -> String {
+    match secs {
+        0..=59 => format!("{secs}s"),
+        60..=3599 => format!("{}m", secs / 60),
+        _ => format!("{}h {}m", secs / 3600, (secs % 3600) / 60),
     }
 }
 
@@ -269,14 +405,35 @@ pub fn run() {
     // Restore last manual mode + active profile; a corrupt config disables saving so it is
     // preserved (FEATURES D8).
     let cfg_path = store::resolve_config_path();
-    let (initial_mode, initial_profile, initial_input, initial_input_settings, save_enabled) =
-        match store::load(&cfg_path) {
-            Ok(c) => (c.mode, c.active().cloned(), c.input_enabled, c.input, true),
-            Err(e) => {
-                tracing::error!("config load failed ({e}); starting Off and preserving the file");
-                (WakeMode::Off, None, false, InputSettings::default(), false)
-            }
-        };
+    FIRST_RUN.store(!cfg_path.exists(), Ordering::SeqCst);
+    let (
+        initial_mode,
+        initial_profile,
+        initial_input,
+        initial_input_settings,
+        stored,
+        save_enabled,
+    ) = match store::load(&cfg_path) {
+        Ok(c) => (
+            c.mode,
+            c.active().cloned(),
+            c.input_enabled,
+            c.input,
+            c.profiles.clone(),
+            true,
+        ),
+        Err(e) => {
+            tracing::error!("config load failed ({e}); starting Off and preserving the file");
+            (
+                WakeMode::Off,
+                None,
+                false,
+                InputSettings::default(),
+                Vec::new(),
+                false,
+            )
+        }
+    };
 
     let mut engine = Engine::new(power);
     // --keep on the command line overrides the persisted mode for this launch (D10).
@@ -289,6 +446,10 @@ pub fn run() {
         engine.set_profile(profile);
     }
     let engine: SharedEngine = Arc::new(Mutex::new(engine));
+    // The engine always holds a profile, so the collection is never empty.
+    let mut stored = stored;
+    profiles::upsert(&mut stored, engine.lock().unwrap().profile().clone());
+    let stored_profiles: SharedProfiles = Arc::new(Mutex::new(stored));
 
     let mut input_engine = InputEngine::new(platform.input.clone(), platform::tick_now());
     input_engine.set_enabled(initial_input);
@@ -299,7 +460,9 @@ pub fn run() {
         platform.processes.clone(),
         platform.foreground.clone(),
         platform.power_source.clone(),
+        platform.session.clone(),
     ));
+    let inspector = platform.inspector.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
@@ -331,6 +494,9 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(engine.clone())
         .manage(input_engine.clone())
+        .manage(stored_profiles.clone())
+        .manage(sampler.clone())
+        .manage(inspector)
         .manage(Mutex::new(Persist {
             path: cfg_path,
             enabled: save_enabled,
@@ -349,6 +515,13 @@ pub fn run() {
             ipc::set_input_enabled,
             ipc::get_input_settings,
             ipc::set_input_settings,
+            ipc::why_awake,
+            ipc::list_profiles,
+            ipc::set_profile,
+            ipc::create_profile,
+            ipc::delete_profile,
+            ipc::is_first_run,
+            ipc::complete_first_run,
             ipc::import_move_mouse,
         ])
         .on_window_event(|window, event| {
@@ -360,35 +533,8 @@ pub fn run() {
         })
         .setup(move |app| {
             let icon = app.default_window_icon().cloned().unwrap();
-            let h = app.handle().clone();
-            let item = |id: &str, txt: &str| MenuItem::with_id(&h, id, txt, true, None::<&str>);
-
             let restored = engine.lock().unwrap().manual();
-            let autostart_on = app.autolaunch().is_enabled().unwrap_or(false);
-            let autostart_item = CheckMenuItem::with_id(
-                &h,
-                "autostart",
-                "Start with Windows",
-                true,
-                autostart_on,
-                None::<&str>,
-            )?;
-
-            let menu = Menu::with_items(
-                &h,
-                &[
-                    &item("off", "Off")?,
-                    &item("keep_running", "Keep running")?,
-                    &item("keep_presenting", "Keep presenting")?,
-                    &PredefinedMenuItem::separator(&h)?,
-                    &autostart_item,
-                    &item("check_update", "Check for updates…")?,
-                    &PredefinedMenuItem::separator(&h)?,
-                    &item("quit", "Quit")?,
-                ],
-            )?;
-
-            let ai = autostart_item.clone();
+            let menu = build_tray_menu(app.handle())?;
             let _tray = TrayIconBuilder::with_id("main")
                 .icon(icon)
                 .tooltip(tooltip_for(restored))
@@ -404,11 +550,11 @@ pub fn run() {
                         open_window(tray.app_handle());
                     }
                 })
-                .on_menu_event(move |app, event| match event.id.as_ref() {
+                .on_menu_event(|app, event| match event.id.as_ref() {
                     "off" => set_manual(app, WakeMode::Off),
                     "keep_running" => set_manual(app, WakeMode::KeepRunning),
                     "keep_presenting" => set_manual(app, WakeMode::KeepPresenting),
-                    "autostart" => toggle_autostart(app, &ai),
+                    "autostart" => toggle_autostart(app),
                     "check_update" => {
                         tauri::async_runtime::spawn(check_and_install(app.clone(), false));
                     }
@@ -416,7 +562,11 @@ pub fn run() {
                         release_all(app);
                         app.exit(0);
                     }
-                    _ => {}
+                    id => {
+                        if let Some(pid) = id.strip_prefix("profile:") {
+                            switch_profile(app, pid);
+                        }
+                    }
                 })
                 .build(app)?;
 
@@ -426,18 +576,17 @@ pub fn run() {
             let sched_sampler = sampler.clone();
             let sched_app = app.handle().clone();
             std::thread::spawn(move || {
-                let mut last_mode: Option<WakeMode> = None;
-                let mut last_blocked = false;
+                let mut last_tip = String::new();
                 platform::run_tick_loop(1000, 200, move || {
                     if SHUTDOWN.load(Ordering::SeqCst) {
                         return false;
                     }
                     // Phase 1: reconcile the power engine against desired state.
                     let snap = sched_sampler.snapshot();
-                    let mode = {
+                    let (mode, remaining) = {
                         let mut e = sched_engine.lock().unwrap();
                         e.tick(&snap);
-                        e.mode()
+                        (e.mode(), soonest_expiry_secs(e.profile(), &snap))
                     };
                     // Phase 2: the input engine (off unless the user enabled it).
                     let blocked = {
@@ -445,16 +594,17 @@ pub fn run() {
                         ie.tick(platform::last_input_tick(), platform::tick_now());
                         ie.enabled() && ie.blocked
                     };
-                    if last_mode != Some(mode) || last_blocked != blocked {
-                        last_mode = Some(mode);
-                        last_blocked = blocked;
+                    // Recomputed every tick but pushed only when the *text* changes, so a
+                    // per-second countdown does not churn the tray once the minute has settled.
+                    let tip = if blocked {
+                        "project-mouse - input blocked (an elevated window has focus)".to_string()
+                    } else {
+                        tooltip_text(mode, remaining)
+                    };
+                    if tip != last_tip {
+                        last_tip = tip.clone();
                         if let Some(tray) = sched_app.tray_by_id("main") {
-                            let tip = if blocked {
-                                "project-mouse — input blocked (an elevated window has focus)"
-                            } else {
-                                tooltip_for(mode)
-                            };
-                            let _ = tray.set_tooltip(Some(tip));
+                            let _ = tray.set_tooltip(Some(&tip));
                         }
                         // Notify the UI only when a window is actually alive (ARCHITECTURE §8).
                         if sched_app.get_webview_window("main").is_some() {

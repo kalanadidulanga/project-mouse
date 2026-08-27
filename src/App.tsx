@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import RulesPage, { Mode, Rule, ProfileView, modeWord } from "./rules";
+import FirstRun from "./firstrun";
 import "./styles.css";
 
 type StateView = {
@@ -22,7 +23,18 @@ type Diagnostics = {
   human_idle_secs: number;
   input_enabled: boolean;
   input_blocked: boolean;
+  remote_session: boolean;
 };
+
+type AwakeReport = {
+  readable: boolean;
+  system_held: boolean;
+  display_held: boolean;
+  away_mode_held: boolean;
+  ours: "Off" | "KeepRunning" | "KeepPresenting";
+};
+
+type ProfileSummary = { id: string; name: string; active: boolean; rule_count: number };
 
 type InputSettings = {
   interval_secs: number;
@@ -50,6 +62,11 @@ export default function App() {
   const [state, setState] = useState<StateView | null>(null);
   const [diag, setDiag] = useState<Diagnostics | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
+  const [firstRun, setFirstRun] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    invoke<boolean>("is_first_run").then(setFirstRun).catch(() => setFirstRun(false));
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -80,6 +97,11 @@ export default function App() {
   const setMode = (mode: string) => invoke("set_mode", { mode }).then(refresh);
   const togglePause = () =>
     invoke(state?.paused ? "resume_all" : "pause_all").then(refresh);
+
+  // Hold the shell back until we know — flashing the full UI and then replacing it with the
+  // first-run question would be worse than one frame of nothing.
+  if (firstRun === null) return <div className="app" />;
+  if (firstRun) return <FirstRun onDone={() => { setFirstRun(false); refresh(); }} />;
 
   return (
     <div className="app">
@@ -216,6 +238,168 @@ function Timer({ onChange }: { onChange: () => void }) {
   );
 }
 
+const ELEVATED_CMD = "powercfg /requests";
+
+/** E1. Two things the panel can state without admin: exactly what we hold, and exactly what
+ *  Windows will report to an unelevated process. It does not merge them, and it does not claim
+ *  the second is complete — see specs/003-settings-ui/research.md R1. */
+function WhyAwake() {
+  const [r, setR] = useState<AwakeReport | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const read = () => invoke<AwakeReport>("why_awake").then(setR).catch(() => {});
+    read();
+    const t = window.setInterval(read, 2000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const copy = () => {
+    navigator.clipboard
+      ?.writeText(ELEVATED_CMD)
+      .then(() => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => {});
+  };
+
+  const ourLine =
+    r?.ours === "KeepPresenting"
+      ? "project-mouse is keeping this machine awake and the display on."
+      : r?.ours === "KeepRunning"
+        ? "project-mouse is keeping this machine awake."
+        : "project-mouse is holding nothing.";
+
+  const held = r
+    ? [
+        r.system_held && "keep the system awake",
+        r.display_held && "keep the display on",
+        r.away_mode_held && "hold away mode",
+      ].filter(Boolean)
+    : [];
+
+  return (
+    <div className="why">
+      <strong style={{ fontSize: 13 }}>Why is my PC awake?</strong>
+
+      <p className="why-line">{ourLine}</p>
+
+      {r && !r.readable && (
+        <p className="why-line">Windows would not tell us what else is holding a power request.</p>
+      )}
+      {r?.readable && (
+        <p className="why-line">
+          {held.length
+            ? `Windows also reports a request on this machine to ${held.join(", ")}.`
+            : "Windows reports no other request it will show us."}
+        </p>
+      )}
+
+      <p className="note">
+        That second line is what Windows will tell a program running without administrator rights.
+        It does not name the program, and it does not cover every kind of request — so treat it as
+        a hint, not an inventory. To get the full list with names, run this from an elevated
+        prompt:
+      </p>
+      <div className="cmd">
+        <code>{ELEVATED_CMD}</code>
+        <button className="btn" onClick={copy}>{copied ? "Copied" : "Copy"}</button>
+      </div>
+    </div>
+  );
+}
+
+/** The profile the engine is holding, and the others it could hold instead. */
+function ProfileSwitcher({ onChange }: { onChange: () => void }) {
+  const [list, setList] = useState<ProfileSummary[]>([]);
+  const load = useCallback(() => {
+    invoke<ProfileSummary[]>("list_profiles").then(setList).catch(() => {});
+  }, []);
+  useEffect(load, [load]);
+
+  const active = list.find((p) => p.active);
+  if (!list.length) return null;
+
+  return (
+    <div className="row">
+      <span className="k">Profile</span>
+      <span className="v">
+        <select
+          className="btn"
+          value={active?.id ?? ""}
+          onChange={(e) =>
+            invoke("set_profile", { id: e.target.value }).then(() => {
+              load();
+              onChange();
+            })
+          }
+        >
+          {list.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name} ({p.rule_count} {p.rule_count === 1 ? "rule" : "rules"})
+            </option>
+          ))}
+        </select>
+      </span>
+    </div>
+  );
+}
+
+/** Create and delete profiles. Deleting the last one is refused by the Rust side. */
+function ProfileManager({ onChange }: { onChange: () => void }) {
+  const [list, setList] = useState<ProfileSummary[]>([]);
+  const [name, setName] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const load = useCallback(() => {
+    invoke<ProfileSummary[]>("list_profiles").then(setList).catch(() => {});
+  }, []);
+  useEffect(load, [load]);
+
+  const after = () => {
+    load();
+    onChange();
+  };
+  const create = () => {
+    if (!name.trim()) return;
+    invoke("create_profile", { name: name.trim() }).then(() => {
+      setName("");
+      after();
+    });
+  };
+  const remove = (id: string) => {
+    setErr(null);
+    invoke("delete_profile", { id })
+      .then(after)
+      .catch((e) => setErr(String(e)));
+  };
+
+  return (
+    <>
+      {list.map((p) => (
+        <div className="row" key={p.id}>
+          <span className="k" style={{ color: "var(--text)" }}>
+            {p.name}
+            {p.active ? " — active" : ""}
+          </span>
+          <button className="btn" onClick={() => remove(p.id)}>Delete</button>
+        </div>
+      ))}
+      {err && <p className="note" style={{ color: "var(--error)" }}>{err}</p>}
+      <div className="cond-row" style={{ marginTop: 10 }}>
+        <input
+          className="btn"
+          placeholder="new profile name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && create()}
+        />
+        <button className="btn primary" onClick={create}>Add profile</button>
+      </div>
+    </>
+  );
+}
+
 function StatusPage({
   state,
   diag,
@@ -280,11 +464,16 @@ function StatusPage({
         </p>
       )}
 
+      <WhyAwake />
+
       <div style={{ marginTop: 20 }}>
-        <div className="row"><span className="k">Profile</span><span className="v">{state?.profile ?? "—"}</span></div>
+        <ProfileSwitcher onChange={onRefresh} />
         <div className="row"><span className="k">Memory</span><span className="v">{diag ? `${diag.memory_mb.toFixed(1)} MB` : "—"}</span></div>
         <div className="row"><span className="k">System idle</span><span className="v">{diag ? fmtIdle(diag.system_idle_secs) : "—"}</span></div>
         <div className="row"><span className="k">Human idle</span><span className="v">{diag ? fmtIdle(diag.human_idle_secs) : "—"}</span></div>
+        {diag?.remote_session && (
+          <div className="row"><span className="k">Session</span><span className="v">remote (RDP or similar)</span></div>
+        )}
       </div>
     </>
   );
@@ -460,6 +649,14 @@ function SettingsPage({
           return, and stops the instant you turn this off.
         </p>
         {inputOn && <InputSettingsForm onChanged={onRefresh} />}
+      </div>
+
+      <div style={{ marginTop: 24, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+        <strong style={{ fontSize: 13 }}>Profiles</strong>
+        <p className="note" style={{ marginTop: 4 }}>
+          Each profile is its own set of rules. The tray menu switches between them too.
+        </p>
+        <ProfileManager onChange={onRefresh} />
       </div>
 
       <div style={{ marginTop: 24, borderTop: "1px solid var(--border)", paddingTop: 16 }}>

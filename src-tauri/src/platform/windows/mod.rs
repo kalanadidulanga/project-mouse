@@ -2,9 +2,11 @@
 
 pub mod foreground;
 pub mod input;
+pub mod inspect;
 pub mod load;
 pub mod power;
 pub mod process;
+pub mod session;
 
 /// Trim the working set back to the OS after startup (ARCHITECTURE §3). Cosmetic — pages fault
 /// back in on next touch — but a genuinely idle tray never touches them again, and users judge

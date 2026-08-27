@@ -48,11 +48,11 @@
 
 ## Phase 4 — Persistence, profiles, hotkey
 
-- [~] **T015** Test: config **v1→v2** migration — a bare-`mode` v1 file becomes one default profile
+- [X] **T015** Test: config **v1→v2** migration — a bare-`mode` v1 file becomes one default profile ✅ Done in 003 T018.
   holding that mode. MUST fail first.
-- [~] **T016** `config/model.rs` + `migrate.rs`: schema_version 2, profiles + active id; migration.
+- [X] **T016** `config/model.rs` + `migrate.rs`: schema_version 2, profiles + active id; migration. ✅ Done in 003 T018.
   Persist rules atomically.
-- [~] **T017** Tray: profile submenu (switch active), and rules surfaced read-only for now (full rule
+- [X] **T017** Tray: profile submenu (switch active), and rules surfaced read-only for now (full rule ✅ **Done 2026-08-28** in 003 T025–T027 — tray submenu + UI switcher + the `persist_current` data-loss fix that had to land first.
   builder UI is M3). `SwitchProfile` action.
 - [x] **T018** Global hotkey (D3) via `tauri-plugin-global-shortcut` — toggle wake with no window.
 
@@ -60,7 +60,7 @@
 
 - [x] **T019** Handle resume (`PBT_APMRESUMEAUTOMATIC`) + `WM_TIMECHANGE`: re-evaluate immediately;
   recompute schedules against local time. Idle-time clamp/wrap guard (WINDOWS-API gotcha 1).
-- [~] **T020** Expiry remaining-time in the tray tooltip (SC-003).
+- [X] **T020** Expiry remaining-time in the tray tooltip (SC-003). ✅ **Done 2026-08-28** in 003 T028 — `soonest_expiry_secs`, shown in the tray tooltip.
 - [~] **T021** Exit-criteria pass SC-001..SC-010; `cargo test` green (all engine tests on
   `Snapshot`/`MockPlatform`); idle CPU ≤ 0.05 % with rules active.
 

@@ -17,21 +17,25 @@ Serialized to the UI as-is.
 | `display_held` | `bool` | Something holds a display-required request |
 | `away_mode_held` | `bool` | Something holds an away-mode request |
 | `ours` | `WakeMode` | What **we** are holding — known exactly, we made the request |
-| `others_hold_system` | `bool` | `system_held` and it is not explained by `ours` |
-| `others_hold_display` | `bool` | `display_held` and it is not explained by `ours` |
 
-**Validation rule**: `others_hold_*` is only ever `true` when the corresponding `*_held` is
-`true`. A `false` there means "we cannot attribute this to anyone else", never "nobody else
-holds it" — the UI wording must not overclaim. See [research.md R1](./research.md).
+**Validation rule**: the `*_held` flags are Windows' aggregate reported **verbatim**. They are
+never adjusted for `ours`, because whether our own `PowerSetRequest` appears in that aggregate
+could not be verified — see [research.md R1, T014 result](./research.md). The two are reported
+side by side and the UI lets the reader combine them; merging them would suppress a real
+third-party request whenever we happened to hold the same kind.
 
-**Derivation** (the whole of the pure logic, and what the tests pin):
+`core/awake.rs` pins this with `our_own_request_never_alters_the_reported_aggregate`, so the
+subtraction that was designed and cut cannot creep back in.
+
+**Derivation** (the whole of the pure logic):
 
 ```
-others_hold_system  = system_held  && !ours.holds_system()
-others_hold_display = display_held && !ours.holds_display()
+readable       = aggregate.is_some()
+system_held    = aggregate & ES_SYSTEM_REQUIRED
+display_held   = aggregate & ES_DISPLAY_REQUIRED
+away_mode_held = aggregate & ES_AWAYMODE_REQUIRED
+ours           = passed through unchanged
 ```
-
-`WakeMode::Off` holds neither; `KeepRunning` holds system; `KeepPresenting` holds both.
 
 ## `ProfileSummary` — the profile switcher
 

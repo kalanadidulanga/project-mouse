@@ -33,13 +33,12 @@ shapes, so `STATUS_INVALID_PARAMETER` on level 45 is a privilege gate, not a buf
 **Do not implement `power/inspect.rs` on top of `GetPowerRequestList`.** Build E1 on
 `SystemExecutionState` (16) instead.
 
-Unelevated we cannot *name* the process holding a request. We can determine, truthfully and with
-no admin, **whether anything on this machine is holding one, and which kind** — and we know our
-own contribution exactly, because we made it. Subtracting the two yields the honest headline:
-
-> *Something other than project-mouse is keeping your display on.*
-
-…followed by the copyable elevated command that names it. This is precisely the shape
+Unelevated we cannot *name* the process holding a request. We can determine, with no admin,
+**whether Windows reports anything holding one, and which kind** — and we know our own
+contribution exactly, because we made it. Whether the two can be *subtracted* was made a
+verification gate (T014); see the result below. They cannot, so the panel reports them
+side by side rather than merged, followed by the copyable elevated command that names the
+holder. This is precisely the shape
 [WINDOWS-API.md](../../docs/WINDOWS-API.md) prescribes for the unelevated case: *"show what it can
 see and say plainly that a complete list needs an elevated `powercfg /requests` — with a copy
 button for the command… it avoids asking for admin rights we promised never to need."*
@@ -63,13 +62,37 @@ button for the command… it avoids asking for admin rights we promised never to
 | Request elevation / add a manifest | Breaks *"never requires admin"* (constitution, Technology & Footprint Constraints) and the trust argument in [PRODUCT.md §8](../../docs/PRODUCT.md#8-positioning). Non-negotiable. |
 | Ship an elevated helper service | Same trust problem, plus an installer and a service to maintain. Wildly out of proportion to one panel. |
 
-### Open verification (implementation-time)
+### T014 result — the "is it us" subtraction is cut
 
-The probe proved `SetThreadExecutionState` is reflected in `SystemExecutionState`. The app holds
-its request via `PowerSetRequest`, not `SetThreadExecutionState`. **Whether our own
-`PowerSetRequest` shows up in the aggregate must be measured before the "and it isn't us"
-subtraction is trusted.** Both outcomes are shippable — if it is not reflected, the aggregate
-already means "someone else", and the subtraction is simply dropped. Covered by task T004b.
+Measured 2026-08-28, same machine. The plan made this a gate before trusting the subtraction, and
+it does not survive:
+
+| Probe | Result |
+|---|---|
+| Baseline `SystemExecutionState`, nothing of ours running | `ES=0x03` — **system and display already held by other software** |
+| Take a request via `PowerCreateRequest` + `PowerSetRequest(System\|Display\|AwayMode)` — exactly what `platform/windows/power.rs` does — then re-read | `ES=0x03`, unchanged. The away-mode request returned `Ok` and its bit never appeared |
+| Control: `SetThreadExecutionState(ES_CONTINUOUS\|ES_AWAYMODE_REQUIRED)`, then re-read | `ES=0x03`, away bit also absent — so **away mode is not reportable on this machine** and cannot be used as a clean channel |
+
+**The verification is inconclusive, not negative.** The aggregate was saturated at `0x03`
+throughout, so no addition of ours was observable on any channel, and the one channel that was
+free (away mode) turns out not to be reported here at all.
+
+**Decision: do not subtract.** Under uncertainty the two failure modes are not symmetric.
+
+- Subtracting when we should not → we *suppress* a real third-party request precisely when we
+  happen to hold the same kind. The panel goes quiet exactly when it matters.
+- Not subtracting when we could have → the aggregate line may include our own request. The panel
+  already states our own contribution on the line above, so the reader can see both.
+
+So `others_hold_system` / `others_hold_display` are removed from `AwakeReport`. The panel reports
+two things separately and exactly: **what we hold** (known, we made the request) and **what
+Windows will report to an unelevated process** (reported verbatim, labelled as a hint rather than
+an inventory). `core/awake.rs` carries a regression test pinning the invariant so the subtraction
+cannot be reintroduced by accident.
+
+This also lands the feature closer to the constitution's second principle than the original design
+did: the panel now says only what it can defend.
+
 
 ---
 
