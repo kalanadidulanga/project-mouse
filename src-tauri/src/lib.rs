@@ -21,7 +21,7 @@ use tauri_plugin_updater::UpdaterExt;
 
 use crate::config::{model::Config, store};
 use crate::core::engine::Engine;
-use crate::core::input_engine::InputEngine;
+use crate::core::input_engine::{InputEngine, InputSettings};
 use crate::core::modes::WakeMode;
 use crate::core::rule::{Condition, Profile, Rule};
 use crate::platform::PowerGuard;
@@ -166,7 +166,10 @@ pub(crate) fn persist_current(app: &tauri::AppHandle) {
         (e.manual(), e.profile().clone())
     };
     let input = app.state::<SharedInput>();
-    let input_enabled = input.lock().unwrap().enabled();
+    let (input_enabled, input_settings) = {
+        let ie = input.lock().unwrap();
+        (ie.enabled(), ie.settings())
+    };
     let p = app.state::<Mutex<Persist>>();
     let p = p.lock().unwrap();
     if !p.enabled {
@@ -177,6 +180,7 @@ pub(crate) fn persist_current(app: &tauri::AppHandle) {
         active_profile: profile.id.clone(),
         profiles: vec![profile],
         input_enabled,
+        input: input_settings,
         ..Config::default()
     };
     if let Err(e) = store::save_atomic(&p.path, &cfg) {
@@ -265,14 +269,14 @@ pub fn run() {
     // Restore last manual mode + active profile; a corrupt config disables saving so it is
     // preserved (FEATURES D8).
     let cfg_path = store::resolve_config_path();
-    let (initial_mode, initial_profile, initial_input, save_enabled) = match store::load(&cfg_path)
-    {
-        Ok(c) => (c.mode, c.active().cloned(), c.input_enabled, true),
-        Err(e) => {
-            tracing::error!("config load failed ({e}); starting Off and preserving the file");
-            (WakeMode::Off, None, false, false)
-        }
-    };
+    let (initial_mode, initial_profile, initial_input, initial_input_settings, save_enabled) =
+        match store::load(&cfg_path) {
+            Ok(c) => (c.mode, c.active().cloned(), c.input_enabled, c.input, true),
+            Err(e) => {
+                tracing::error!("config load failed ({e}); starting Off and preserving the file");
+                (WakeMode::Off, None, false, InputSettings::default(), false)
+            }
+        };
 
     let mut engine = Engine::new(power);
     // --keep on the command line overrides the persisted mode for this launch (D10).
@@ -288,6 +292,7 @@ pub fn run() {
 
     let mut input_engine = InputEngine::new(platform.input.clone(), platform::tick_now());
     input_engine.set_enabled(initial_input);
+    input_engine.set_settings(initial_input_settings);
     let input_engine: SharedInput = Arc::new(Mutex::new(input_engine));
 
     let sampler = Arc::new(Sampler::new(
@@ -342,6 +347,8 @@ pub fn run() {
             ipc::delete_rule,
             ipc::set_rule_enabled,
             ipc::set_input_enabled,
+            ipc::get_input_settings,
+            ipc::set_input_settings,
             ipc::import_move_mouse,
         ])
         .on_window_event(|window, event| {

@@ -7,7 +7,7 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 
 use crate::core::engine::Engine;
-use crate::core::input_engine::InputEngine;
+use crate::core::input_engine::{InputEngine, InputSettings};
 use crate::core::modes::WakeMode;
 use crate::core::rule::{Profile, Rule};
 use crate::{logging, platform};
@@ -111,6 +111,25 @@ pub fn get_diagnostics(
 pub fn set_input_enabled(app: AppHandle, input: State<'_, SharedInput>, enabled: bool) {
     input.lock().unwrap().set_enabled(enabled);
     crate::persist_current(&app);
+}
+
+#[tauri::command]
+pub fn get_input_settings(input: State<'_, SharedInput>) -> InputSettings {
+    input.lock().unwrap().settings()
+}
+
+#[tauri::command]
+pub fn set_input_settings(
+    app: AppHandle,
+    input: State<'_, SharedInput>,
+    settings: InputSettings,
+) -> InputSettings {
+    let mut ie = input.lock().unwrap();
+    ie.set_settings(settings);
+    let applied = ie.settings(); // clamped — the UI shows what actually took effect
+    drop(ie);
+    crate::persist_current(&app);
+    applied
 }
 
 /// Import a Move Mouse `Settings.xml` → the active profile (power-only default). Returns the report.

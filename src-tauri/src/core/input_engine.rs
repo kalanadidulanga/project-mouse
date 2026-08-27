@@ -4,10 +4,33 @@
 
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
+
 use crate::core::idle::IdleTracker;
 use crate::platform::InputInjector;
 
 const TOLERANCE_MS: u32 = 250;
+
+/// The user-settable input-engine knobs (M4). Clamped in `InputEngine::set_settings`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InputSettings {
+    /// Seconds between jiggles.
+    pub interval_secs: u32,
+    /// Only jiggle once the human has been idle this long.
+    pub idle_threshold_secs: u32,
+    /// 0 = virtual jiggle (the honest default, PRODUCT §5); otherwise a virtual-key code.
+    pub key: u16,
+}
+
+impl Default for InputSettings {
+    fn default() -> Self {
+        Self {
+            interval_secs: 60,
+            idle_threshold_secs: 60,
+            key: 0,
+        }
+    }
+}
 
 fn abs_diff(a: u32, b: u32) -> u32 {
     a.wrapping_sub(b).min(b.wrapping_sub(a))
@@ -56,6 +79,22 @@ impl InputEngine {
 
     pub fn enabled(&self) -> bool {
         self.enabled
+    }
+
+    /// The user-settable knobs. Clamped here so a bad config or a typo in the UI cannot produce a
+    /// runaway injector: interval 5 s–1 h, idle threshold 0–24 h.
+    pub fn set_settings(&mut self, s: InputSettings) {
+        self.interval_ms = s.interval_secs.clamp(5, 3_600) * 1000;
+        self.idle_threshold_ms = s.idle_threshold_secs.min(86_400) * 1000;
+        self.key = s.key;
+    }
+
+    pub fn settings(&self) -> InputSettings {
+        InputSettings {
+            interval_secs: self.interval_ms / 1000,
+            idle_threshold_secs: self.idle_threshold_ms / 1000,
+            key: self.key,
+        }
     }
 
     /// One tick. `last_input_tick` = `GetLastInputInfo.dwTime`, `now` = `GetTickCount` (same domain).
@@ -123,6 +162,37 @@ mod tests {
         let mut e = engine(&m);
         e.set_enabled(true);
         e.tick(0, 300_000);
+        assert_eq!(*m.jiggles.lock().unwrap(), 1);
+    }
+
+    #[test]
+    fn settings_round_trip_and_clamp() {
+        let m = MockInjector::default();
+        let mut e = engine(&m);
+        e.set_settings(InputSettings {
+            interval_secs: 1, // below the floor
+            idle_threshold_secs: 300,
+            key: 0x7E, // VK_F15
+        });
+        let got = e.settings();
+        assert_eq!(got.interval_secs, 5, "interval clamped to the 5 s floor");
+        assert_eq!(got.idle_threshold_secs, 300);
+        assert_eq!(got.key, 0x7E);
+    }
+
+    #[test]
+    fn honours_the_idle_threshold() {
+        let m = MockInjector::default();
+        let mut e = engine(&m);
+        e.set_enabled(true);
+        e.set_settings(InputSettings {
+            interval_secs: 60,
+            idle_threshold_secs: 600,
+            key: 0,
+        });
+        e.tick(0, 300_000); // human idle 5 min < the 10 min threshold
+        assert_eq!(*m.jiggles.lock().unwrap(), 0);
+        e.tick(0, 700_000); // now past it
         assert_eq!(*m.jiggles.lock().unwrap(), 1);
     }
 

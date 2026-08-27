@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::core::input_engine::InputSettings;
 use crate::core::modes::WakeMode;
 use crate::core::rule::Profile;
 
@@ -28,6 +29,9 @@ pub struct Config {
     /// The opt-in input engine. **Off by default** (FEATURES Part C).
     #[serde(default)]
     pub input_enabled: bool,
+    /// Input-engine knobs. Only meaningful while `input_enabled`.
+    #[serde(default)]
+    pub input: InputSettings,
 }
 
 impl Default for Config {
@@ -38,6 +42,7 @@ impl Default for Config {
             profiles: Vec::new(),
             active_profile: String::new(),
             input_enabled: false,
+            input: InputSettings::default(),
         }
     }
 }

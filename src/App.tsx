@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import RulesPage, { Mode, Rule, ProfileView, modeWord } from "./rules";
 import "./styles.css";
 
 type StateView = {
@@ -21,6 +22,12 @@ type Diagnostics = {
   human_idle_secs: number;
   input_enabled: boolean;
   input_blocked: boolean;
+};
+
+type InputSettings = {
+  interval_secs: number;
+  idle_threshold_secs: number;
+  key: number;
 };
 
 type Page = "status" | "rules" | "activity" | "settings";
@@ -97,6 +104,7 @@ export default function App() {
             diag={diag}
             onMode={setMode}
             onTogglePause={togglePause}
+            onRefresh={refresh}
           />
         )}
         {page === "rules" && <RulesPage />}
@@ -106,12 +114,104 @@ export default function App() {
             state={state}
             diag={diag}
             onMode={setMode}
-            onToggleInput={() =>
-              invoke("set_input_enabled", { enabled: !diag?.input_enabled }).then(refresh)
-            }
+            onRefresh={refresh}
           />
         )}
       </main>
+    </div>
+  );
+}
+
+/** "Keep awake for 2 hours" — a rule with an `ExpiryAt` condition, so it releases itself.
+ *  Deliberately not the manual mode: manual never expires, a rule does. */
+const TIMER_ID = "timer";
+const DURATIONS: [string, number][] = [
+  ["15m", 15],
+  ["30m", 30],
+  ["1h", 60],
+  ["2h", 120],
+  ["4h", 240],
+];
+
+function Timer({ onChange }: { onChange: () => void }) {
+  const [rule, setRule] = useState<Rule | null>(null);
+  const [mode, setMode] = useState<Mode>("KeepRunning");
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+
+  const load = useCallback(() => {
+    invoke<ProfileView>("get_rules")
+      .then((p) => setRule(p.rules.find((r) => r.id === TIMER_ID) ?? null))
+      .catch(() => {});
+  }, []);
+  useEffect(load, [load]);
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const deadline =
+    rule?.conditions.reduce<number | null>(
+      (acc, c) => (typeof c === "object" && "ExpiryAt" in c ? c.ExpiryAt : acc),
+      null,
+    ) ?? null;
+  const left = deadline === null ? 0 : deadline - now;
+
+  const cancel = useCallback(
+    () =>
+      invoke("delete_rule", { id: TIMER_ID }).then(() => {
+        setRule(null);
+        onChange();
+      }),
+    [onChange],
+  );
+
+  // ponytail: the expired rule is only swept while the window is open. It evaluates false either
+  // way, so a stale one holds nothing — sweep it in the scheduler tick if that ever stops being true.
+  useEffect(() => {
+    if (deadline !== null && left <= 0) cancel();
+  }, [deadline, left, cancel]);
+
+  const start = (minutes: number) => {
+    const at = Math.floor(Date.now() / 1000) + minutes * 60;
+    const r: Rule = {
+      id: TIMER_ID,
+      name: `Keep ${modeWord(mode)} for ${minutes} minutes`,
+      enabled: true,
+      conditions: [{ ExpiryAt: at }],
+      mode,
+    };
+    invoke("upsert_rule", { rule: r }).then(() => {
+      setRule(r);
+      onChange();
+    });
+  };
+
+  if (deadline !== null && left > 0) {
+    return (
+      <div className="row">
+        <span className="k" style={{ color: "var(--text)" }}>
+          Keeping {modeWord(rule!.mode)} for another {fmtIdle(left)}
+        </span>
+        <button className="btn" onClick={cancel}>
+          Cancel timer
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="cond-row" style={{ marginTop: 16 }}>
+      <span className="note">Keep</span>
+      <select className="btn" value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
+        <option value="KeepRunning">running</option>
+        <option value="KeepPresenting">presenting</option>
+      </select>
+      <span className="note">for</span>
+      {DURATIONS.map(([label, mins]) => (
+        <button key={label} className="btn" onClick={() => start(mins)}>
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -121,11 +221,13 @@ function StatusPage({
   diag,
   onMode,
   onTogglePause,
+  onRefresh,
 }: {
   state: StateView | null;
   diag: Diagnostics | null;
   onMode: (m: string) => void;
   onTogglePause: () => void;
+  onRefresh: () => void;
 }) {
   const eff = state?.effective_mode ?? "off";
   const active = eff !== "off";
@@ -136,7 +238,7 @@ function StatusPage({
         <div className={`status-line ${active ? "active" : ""}`}>
           {state?.paused ? "Paused" : MODE_LABEL[eff]}
         </div>
-        <div className="status-sub">{diag?.reason ?? " "}</div>
+        <div className="status-sub">{diag?.reason ?? " "}</div>
         <div
           className={`switch ${state?.paused ? "on" : ""}`}
           role="switch"
@@ -149,6 +251,9 @@ function StatusPage({
           <span>{state?.paused ? "Resume" : "Pause"}</span>
         </div>
       </div>
+
+      <ModeButtons manual={state?.manual_mode} onMode={onMode} />
+      <Timer onChange={onRefresh} />
 
       <div className="effect" style={{ marginTop: 20 }}>
         <span className="label">System sleep</span>
@@ -181,8 +286,6 @@ function StatusPage({
         <div className="row"><span className="k">System idle</span><span className="v">{diag ? fmtIdle(diag.system_idle_secs) : "—"}</span></div>
         <div className="row"><span className="k">Human idle</span><span className="v">{diag ? fmtIdle(diag.human_idle_secs) : "—"}</span></div>
       </div>
-
-      <ModeButtons manual={state?.manual_mode} onMode={onMode} />
     </>
   );
 }
@@ -208,105 +311,6 @@ function ModeButtons({ manual, onMode }: { manual?: string; onMode: (m: string) 
   );
 }
 
-type Rule = {
-  id: string;
-  name: string;
-  enabled: boolean;
-  conditions: unknown[];
-  mode: string; // "KeepRunning" | "KeepPresenting"
-};
-type ProfileView = { id: string; name: string; rules: Rule[] };
-
-function newId(): string {
-  try {
-    return crypto.randomUUID();
-  } catch {
-    return `rule-${Date.now()}`;
-  }
-}
-
-function RulesPage() {
-  const [profile, setProfile] = useState<ProfileView | null>(null);
-  const [proc, setProc] = useState("");
-  const [mode, setMode] = useState("KeepRunning");
-
-  const load = useCallback(() => {
-    invoke<ProfileView>("get_rules").then(setProfile).catch(() => {});
-  }, []);
-  useEffect(load, [load]);
-
-  const add = () => {
-    const name = proc.trim();
-    if (!name) return;
-    const rule: Rule = {
-      id: newId(),
-      name: `Keep ${mode === "KeepPresenting" ? "presenting" : "running"} while ${name} runs`,
-      enabled: false, // disabled by default (UI-UX §3)
-      conditions: [{ ProcessRunning: [name] }],
-      mode,
-    };
-    invoke("upsert_rule", { rule }).then(() => {
-      setProc("");
-      load();
-    });
-  };
-  const toggle = (id: string, enabled: boolean) =>
-    invoke("set_rule_enabled", { id, enabled }).then(load);
-  const remove = (id: string) => invoke("delete_rule", { id }).then(load);
-
-  return (
-    <>
-      <h1>Rules</h1>
-      <p className="note">
-        A rule keeps the machine awake while its condition holds. New rules start disabled — turn
-        one on when you want it.
-      </p>
-
-      {profile && profile.rules.length > 0 ? (
-        profile.rules.map((r) => (
-          <div className="row" key={r.id}>
-            <span className="k" style={{ color: "var(--text)" }}>{r.name}</span>
-            <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <label style={{ fontSize: 12, color: "var(--text-2)" }}>
-                <input
-                  type="checkbox"
-                  checked={r.enabled}
-                  onChange={(e) => toggle(r.id, e.target.checked)}
-                />{" "}
-                on
-              </label>
-              <button className="btn" onClick={() => remove(r.id)}>Delete</button>
-            </span>
-          </div>
-        ))
-      ) : (
-        <p className="note">No rules yet.</p>
-      )}
-
-      <div style={{ marginTop: 20, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-        <p className="note">Add a rule: keep awake while a process runs.</p>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <select className="btn" value={mode} onChange={(e) => setMode(e.target.value)}>
-            <option value="KeepRunning">Keep running</option>
-            <option value="KeepPresenting">Keep presenting</option>
-          </select>
-          <span className="note">while</span>
-          <input
-            className="btn"
-            style={{ minWidth: 160 }}
-            placeholder="process.exe"
-            value={proc}
-            onChange={(e) => setProc(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && add()}
-          />
-          <span className="note">is running</span>
-          <button className="btn primary" onClick={add}>Add rule</button>
-        </div>
-      </div>
-    </>
-  );
-}
-
 function ActivityPage({ logs }: { logs: string[] }) {
   return (
     <>
@@ -316,18 +320,107 @@ function ActivityPage({ logs }: { logs: string[] }) {
   );
 }
 
+/** Virtual-key codes worth offering. F15 is the category's convention (Caffeine); it is also the
+ *  one that breaks in PuTTY and Google Docs, which is exactly why the choice is the user's. */
+const KEYS: [number, string][] = [
+  [0, "virtual jiggle (nothing moves on screen)"],
+  [0x7e, "F15"],
+  [0x91, "Scroll Lock"],
+  [0x10, "Shift"],
+];
+
+function InputSettingsForm({ onChanged }: { onChanged: () => void }) {
+  const [s, setS] = useState<InputSettings | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    invoke<InputSettings>("get_input_settings").then(setS).catch(() => {});
+  }, []);
+
+  if (!s) return null;
+
+  const save = (next: InputSettings) => {
+    setS(next);
+    // Rust clamps; show what actually took effect rather than what was typed.
+    invoke<InputSettings>("set_input_settings", { settings: next }).then((applied) => {
+      setS(applied);
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 1500);
+      onChanged();
+    });
+  };
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div className="row">
+        <span className="k">Jiggle every</span>
+        <span className="v">
+          <input
+            className="btn"
+            type="number"
+            min={5}
+            max={3600}
+            style={{ width: 90 }}
+            value={s.interval_secs}
+            onChange={(e) => setS({ ...s, interval_secs: Number(e.target.value) })}
+            onBlur={() => save(s)}
+          />{" "}
+          seconds
+        </span>
+      </div>
+      <div className="row">
+        <span className="k">Only after you have been idle for</span>
+        <span className="v">
+          <input
+            className="btn"
+            type="number"
+            min={0}
+            max={86400}
+            style={{ width: 90 }}
+            value={s.idle_threshold_secs}
+            onChange={(e) => setS({ ...s, idle_threshold_secs: Number(e.target.value) })}
+            onBlur={() => save(s)}
+          />{" "}
+          seconds
+        </span>
+      </div>
+      <div className="row">
+        <span className="k">What to send</span>
+        <span className="v">
+          <select
+            className="btn"
+            value={s.key}
+            onChange={(e) => save({ ...s, key: Number(e.target.value) })}
+          >
+            {KEYS.map(([code, label]) => (
+              <option key={code} value={code}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </span>
+      </div>
+      <p className="note">
+        {saved ? "Saved." : "Interval is clamped to 5 s–1 h."}
+      </p>
+    </div>
+  );
+}
+
 function SettingsPage({
   state,
   diag,
   onMode,
-  onToggleInput,
+  onRefresh,
 }: {
   state: StateView | null;
   diag: Diagnostics | null;
   onMode: (m: string) => void;
-  onToggleInput: () => void;
+  onRefresh: () => void;
 }) {
   const inputOn = diag?.input_enabled ?? false;
+  const toggleInput = () =>
+    invoke("set_input_enabled", { enabled: !inputOn }).then(onRefresh);
   const [mmPath, setMmPath] = useState("");
   const [mmReport, setMmReport] = useState<string[] | null>(null);
   const [mmError, setMmError] = useState<string | null>(null);
@@ -353,8 +446,8 @@ function SettingsPage({
             aria-checked={inputOn}
             tabIndex={0}
             style={{ marginTop: 0 }}
-            onClick={onToggleInput}
-            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onToggleInput()}
+            onClick={toggleInput}
+            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && toggleInput()}
           >
             <span className="track"><span className="thumb" /></span>
             <span>{inputOn ? "On" : "Off"}</span>
@@ -366,6 +459,7 @@ function SettingsPage({
           detectable and may be against an acceptable-use policy. It stands down the moment you
           return, and stops the instant you turn this off.
         </p>
+        {inputOn && <InputSettingsForm onChanged={onRefresh} />}
       </div>
 
       <div style={{ marginTop: 24, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
