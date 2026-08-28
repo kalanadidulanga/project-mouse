@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.2.1
+
+An available update is now visible.
+
+v0.2.0 shipped correctly and nothing appeared to happen, because the only notice
+an update existed was the tray tooltip — and the tooltip is rewritten whenever the
+mode or the timer text changes, so the notice was usually wiped seconds after it
+appeared.
+
+### Added
+
+- **A banner on the Status page** when an update is available, with **Install and
+  restart**. Nothing happens until you press it.
+- **Settings → Updates**: the version you are on, a **Check for updates
+  automatically** switch (on by default), and **Check now**.
+- Update checks are spread by up to half an hour, so a popular release does not
+  have every installation asking at the same moment.
+
+### Notes
+
+- A background check still only tells you an update exists. It does not install
+  one, and it will not restart the app underneath you. That is deliberate.
+- The automatic check can be turned off entirely. Some people run this on machines
+  where an outbound request gets noticed.
+
 ## v0.2.0
 
 The window became the control surface. v0.1.0 shipped an engine that understood far more than its
