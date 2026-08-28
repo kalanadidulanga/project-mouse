@@ -315,6 +315,42 @@ pub fn import_move_mouse(
     Ok(imported.report)
 }
 
+#[derive(Serialize)]
+pub struct UpdateStatus {
+    pub current: String,
+    /// The version a check found, or `None`. Not a promise that one does not exist — only that
+    /// no check has found one yet.
+    pub available: Option<String>,
+    pub auto_check: bool,
+}
+
+#[tauri::command]
+pub fn get_update_status() -> UpdateStatus {
+    UpdateStatus {
+        current: env!("CARGO_PKG_VERSION").to_string(),
+        available: crate::update_available(),
+        auto_check: crate::auto_update_enabled(),
+    }
+}
+
+#[tauri::command]
+pub fn set_auto_update(app: AppHandle, enabled: bool) {
+    crate::set_auto_update(&app, enabled);
+}
+
+/// Check now, without installing — the manual counterpart to the background check (UPDATES.md §6).
+#[tauri::command]
+pub fn check_for_update(app: AppHandle) {
+    tauri::async_runtime::spawn(crate::check_and_install(app, true));
+}
+
+/// Download and install. Windows force-exits during install; `on_before_exit` releases the power
+/// request first, so nothing is left holding the machine awake.
+#[tauri::command]
+pub fn install_update(app: AppHandle) {
+    tauri::async_runtime::spawn(crate::check_and_install(app, false));
+}
+
 #[tauri::command]
 pub fn get_logs(limit: usize) -> Vec<String> {
     logging::tail(limit.clamp(1, 500))

@@ -36,6 +36,8 @@ type AwakeReport = {
 
 type ProfileSummary = { id: string; name: string; active: boolean; rule_count: number };
 
+type UpdateStatus = { current: string; available: string | null; auto_check: boolean };
+
 type Motion = "Virtual" | "Line" | "Square" | "Circle";
 
 type InputSettings = {
@@ -243,6 +245,115 @@ function Timer({ onChange }: { onChange: () => void }) {
   );
 }
 
+/** UPDATES.md §6: a background check hints, it never interrupts. But the hint used to be a tray
+ *  tooltip and nothing else, which is not a hint so much as a secret. This is the affordance
+ *  ROADMAP M5 asks for — visible, and still nothing happens until you press it. */
+function UpdateBanner() {
+  const [u, setU] = useState<UpdateStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const read = () => invoke<UpdateStatus>("get_update_status").then(setU).catch(() => {});
+    read();
+    const t = window.setInterval(read, 5000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  if (!u?.available) return null;
+  return (
+    <div className="update-banner">
+      <span>
+        Version <strong>{u.available}</strong> is available. You are on {u.current}.
+      </span>
+      <button
+        className="btn primary"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          invoke("install_update").catch(() => setBusy(false));
+        }}
+      >
+        {busy ? "Installing…" : "Install and restart"}
+      </button>
+    </div>
+  );
+}
+
+/** Settings → Updates. The switch is required by UPDATES.md §6: some people run this on
+ *  locked-down machines where an outbound request gets noticed, and they deserve the choice. */
+function UpdateSettings() {
+  const [u, setU] = useState<UpdateStatus | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checked, setChecked] = useState(false);
+
+  const read = useCallback(
+    () => invoke<UpdateStatus>("get_update_status").then(setU).catch(() => {}),
+    [],
+  );
+  useEffect(() => {
+    read();
+  }, [read]);
+
+  if (!u) return null;
+
+  const checkNow = () => {
+    setChecking(true);
+    setChecked(false);
+    invoke("check_for_update").finally(() => {
+      // The check runs in the background; give it a moment, then re-read.
+      window.setTimeout(() => {
+        read().then(() => {
+          setChecking(false);
+          setChecked(true);
+        });
+      }, 2500);
+    });
+  };
+
+  return (
+    <div style={{ marginTop: 24, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+      <strong style={{ fontSize: 13 }}>Updates</strong>
+      <div className="row">
+        <span className="k">This version</span>
+        <span className="v">{u.current}</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+        <span className="k">Check for updates automatically</span>
+        <div
+          className={`switch ${u.auto_check ? "on" : ""}`}
+          role="switch"
+          aria-checked={u.auto_check}
+          tabIndex={0}
+          style={{ marginTop: 0 }}
+          onClick={() => invoke("set_auto_update", { enabled: !u.auto_check }).then(read)}
+          onKeyDown={(e) =>
+            (e.key === "Enter" || e.key === " ") &&
+            invoke("set_auto_update", { enabled: !u.auto_check }).then(read)
+          }
+        >
+          <span className="track"><span className="thumb" /></span>
+          <span>{u.auto_check ? "On" : "Off"}</span>
+        </div>
+      </div>
+      <div className="cond-row" style={{ marginTop: 10 }}>
+        <button className="btn" onClick={checkNow} disabled={checking}>
+          {checking ? "Checking…" : "Check now"}
+        </button>
+        <span className="note">
+          {u.available
+            ? `Version ${u.available} is available — install it from the Status page.`
+            : checked
+              ? "You are up to date."
+              : "Checks run about every six hours."}
+        </span>
+      </div>
+      <p className="note" style={{ marginTop: 8 }}>
+        A background check only tells you an update exists — it never installs one on its own.
+      </p>
+    </div>
+  );
+}
+
 const ELEVATED_CMD = "powercfg /requests";
 
 /** E1. Two things the panel can state without admin: exactly what we hold, and exactly what
@@ -427,6 +538,7 @@ function StatusPage({
   return (
     <>
       <h1>Status</h1>
+      <UpdateBanner />
       <div className="status-card">
         <div className={`status-line ${active ? "active" : ""}`}>
           {state?.paused ? "Paused" : MODE_LABEL[eff]}
@@ -763,6 +875,8 @@ function SettingsPage({
           </ul>
         )}
       </div>
+
+      <UpdateSettings />
 
       <p className="note" style={{ marginTop: 20 }}>
         Start with Windows and Quit are on the tray menu. Toggle the wake lock any time with

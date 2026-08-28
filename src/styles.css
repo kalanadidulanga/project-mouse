@@ -221,3 +221,20 @@ body {
   font-size: 12px;
   user-select: all;
 }
+
+/* Update notice on Status. Static — it appears when a check finds something and does nothing
+   until pressed (UPDATES.md §6: hint, never interrupt). */
+.update-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--text);
+}

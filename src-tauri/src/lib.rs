@@ -37,6 +37,27 @@ static PANIC_GUARD: OnceLock<Arc<dyn PowerGuard>> = OnceLock::new();
 /// re-acquire a request after release).
 static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
+/// The version a background check found, if any. Held here rather than written straight to the
+/// tray tooltip: the scheduler rewrites that tooltip whenever the mode changes, which used to
+/// wipe the only notice the user ever got.
+static UPDATE_AVAILABLE: Mutex<Option<String>> = Mutex::new(None);
+
+/// Whether background checks run. Mirrors `Config::auto_update`.
+static AUTO_UPDATE: AtomicBool = AtomicBool::new(true);
+
+pub(crate) fn update_available() -> Option<String> {
+    UPDATE_AVAILABLE.lock().unwrap().clone()
+}
+
+pub(crate) fn auto_update_enabled() -> bool {
+    AUTO_UPDATE.load(Ordering::SeqCst)
+}
+
+pub(crate) fn set_auto_update(app: &tauri::AppHandle, on: bool) {
+    AUTO_UPDATE.store(on, Ordering::SeqCst);
+    persist_current(app);
+}
+
 type SharedEngine = Arc<Mutex<Engine>>;
 type SharedInput = Arc<Mutex<InputEngine>>;
 /// Every profile on disk. The engine holds one of them; this is the set (research R3).
@@ -207,6 +228,7 @@ pub(crate) fn persist_current(app: &tauri::AppHandle) {
         profiles: all,
         input_enabled,
         input: input_settings,
+        auto_update: auto_update_enabled(),
         ..Config::default()
     };
     if let Err(e) = store::save_atomic(&p.path, &cfg) {
@@ -322,9 +344,13 @@ pub(crate) fn rebuild_tray_menu(app: &tauri::AppHandle) {
 
 /// Tooltip text: the mode, plus how long a running timer has left (002 T020).
 fn tooltip_text(mode: WakeMode, remaining: Option<u64>) -> String {
-    match remaining {
+    let base = match remaining {
         Some(s) => format!("{} — {} left", tooltip_for(mode), fmt_remaining(s)),
         None => tooltip_for(mode).to_string(),
+    };
+    match update_available() {
+        Some(v) => format!("{base}\nUpdate {v} available — tray → Check for updates"),
+        None => base,
     }
 }
 
@@ -367,10 +393,11 @@ async fn check_and_install(app: tauri::AppHandle, auto: bool) {
             let v = update.version.clone();
             tracing::info!("update available: {v}");
             if auto {
-                if let Some(tray) = app.tray_by_id("main") {
-                    let _ = tray.set_tooltip(Some(format!(
-                        "project-mouse — update {v} available (tray → Check for updates)"
-                    )));
+                // Record it and let the tooltip composer pick it up; the UI reads the same flag.
+                // A background check never installs — UPDATES.md §6, "never interrupt".
+                *UPDATE_AVAILABLE.lock().unwrap() = Some(v.clone());
+                if app.get_webview_window("main").is_some() {
+                    let _ = app.emit("state:changed", ());
                 }
                 return;
             }
@@ -380,6 +407,7 @@ async fn check_and_install(app: tauri::AppHandle, auto: bool) {
             }
         }
         Ok(None) => {
+            *UPDATE_AVAILABLE.lock().unwrap() = None;
             if !auto {
                 tracing::info!("already up to date");
             }
@@ -522,6 +550,10 @@ pub fn run() {
             ipc::delete_profile,
             ipc::is_first_run,
             ipc::complete_first_run,
+            ipc::get_update_status,
+            ipc::set_auto_update,
+            ipc::check_for_update,
+            ipc::install_update,
             ipc::import_move_mouse,
         ])
         .on_window_event(|window, event| {
@@ -641,8 +673,14 @@ pub fn run() {
                     if SHUTDOWN.load(Ordering::SeqCst) {
                         break;
                     }
-                    tauri::async_runtime::spawn(check_and_install(up.clone(), true));
-                    std::thread::sleep(std::time::Duration::from_secs(6 * 3600));
+                    if auto_update_enabled() {
+                        tauri::async_runtime::spawn(check_and_install(up.clone(), true));
+                    }
+                    // 6 h with up to 30 min of jitter, so a popular release does not produce a
+                    // synchronised thundering herd at the top of the hour (UPDATES.md §6). Seeded
+                    // from the tick — no RNG state, and it varies per machine.
+                    let jitter = (crate::platform::tick_now() % 1_800) as u64;
+                    std::thread::sleep(std::time::Duration::from_secs(6 * 3600 + jitter));
                 }
             });
             Ok(())

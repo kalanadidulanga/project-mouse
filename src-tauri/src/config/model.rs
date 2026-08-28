@@ -32,6 +32,14 @@ pub struct Config {
     /// Input-engine knobs. Only meaningful while `input_enabled`.
     #[serde(default)]
     pub input: InputSettings,
+    /// Check for updates in the background (UPDATES.md §6). Default on, and a switch, because
+    /// some people run this on machines where outbound requests get noticed.
+    #[serde(default = "default_true")]
+    pub auto_update: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for Config {
@@ -43,6 +51,7 @@ impl Default for Config {
             active_profile: String::new(),
             input_enabled: false,
             input: InputSettings::default(),
+            auto_update: true,
         }
     }
 }
