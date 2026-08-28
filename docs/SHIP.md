@@ -61,6 +61,18 @@ ROADMAP M5 + UPDATES.md into one runnable list. Items marked **[human]** cannot 
 
 ## Deferred refinements (not blockers)
 
-- First-run wizard (M3); the full "why is my PC awake?" list via `CallNtPowerInformation` (M3 E1);
-  visible movement / click / randomisation (M4 C2/C4/C5); the name change from `project-mouse`
-  before first public release (PRODUCT §9); Move Mouse importer + macOS/Linux (M6).
+Shipped since this list was written (v0.2.0): first-run wizard · E1 "why is my PC awake?" ·
+profiles · visible movement (C2) · variation (C5) · Move Mouse importer.
+
+Still deferred:
+
+- **E1 cannot name the holder**, and that is not a gap to close — `GetPowerRequestList` refuses an
+  unelevated caller and `powercfg /requests` will not run without an elevated prompt (measured;
+  `specs/003-settings-ui/research.md` R1). Closing it would mean taking admin, which is a promise
+  we do not break.
+- **Click and scroll (C4).** Needs the foreground-application gate FEATURES requires before it is
+  safe to ship — a synthetic click lands on whatever is under the cursor.
+- **The name change** from `project-mouse` before first public release (PRODUCT §9). It names the
+  mechanism that is deliberately *not* the default, and the binary name is what ends up in
+  blocklists, winget manifests, and `powercfg /requests` output.
+- macOS / Linux (M6).
