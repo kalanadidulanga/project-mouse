@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    project-mouse app icon — the source of truth. Regenerate every platform size with:
+        npx tauri icon assets/icon.svg
+
+    Design notes, so the next person does not "improve" it into something unreadable:
+    - The mark is the IEC 5009 power/standby glyph. The product holds a *power request*, so this
+      is literally what it does. It is also the one glyph everyone already reads correctly.
+    - Not a mouse, not a jiggler, not a coffee cup, not a pill. PRODUCT.md §9 rules that register
+      out, and PowerToys/Caffeine/Amphetamine already own the others.
+    - Flat, two colours, one shape. It has to survive 16x16 in the system tray, which is where it
+      is seen most. Gradients and detail die at that size.
+    - The dark tile is not decoration: a bare glyph disappears on either a light or a dark
+      taskbar. The tile guarantees its own contrast.
+  -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#243040"/>
+      <stop offset="1" stop-color="#161d27"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="url(#tile)"/>
+
+  <g fill="none" stroke="#35d07f" stroke-width="96" stroke-linecap="round">
+    <!-- Ring, open at the top: starts at the right edge of the gap and sweeps 276° clockwise. -->
+    <path d="M 692.7 311.4 A 270 270 0 1 1 331.3 311.4"/>
+    <!-- The bar, through the gap. -->
+    <path d="M 512 182 L 512 478"/>
+  </g>
+</svg>

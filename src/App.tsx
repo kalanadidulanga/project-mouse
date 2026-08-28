@@ -291,7 +291,11 @@ function WhyAwake() {
       {r?.readable && (
         <p className="why-line">
           {held.length
-            ? `Windows also reports a request on this machine to ${held.join(", ")}.`
+            ? `Windows also reports a request on this machine to ${
+                held.length > 1
+                  ? `${held.slice(0, -1).join(", ")} and ${held[held.length - 1]}`
+                  : held[0]
+              }.`
             : "Windows reports no other request it will show us."}
         </p>
       )}

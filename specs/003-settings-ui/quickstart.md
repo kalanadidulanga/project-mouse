@@ -40,12 +40,24 @@ npm run tauri dev
 ```
 
 1. No window at startup; a tray icon only.
-2. Left-click the tray → the window opens. **MANUAL**: it should be interactive in well under a
-   second; anything that feels like a beat is a regression worth timing properly.
-3. Close it. **MANUAL**: in Task Manager, the `msedgewebview2.exe` children disappear and the
-   app's private working set returns toward the tray-only baseline within ~30 s. If they linger,
-   something replaced `destroy()` with `hide()` — that is the M0 finding the whole memory budget
-   rests on.
+2. Left-click the tray → the window opens.
+3. Close it, wait ~30 s.
+
+**Measured 2026-08-28** (debug build, `sc001.ps1`): tray-only **2.2 MB** · window open **34.5 MB**
+· settled after close **4.6 MB**. The settings window is genuinely destroyed — enumerating the
+process's top-level windows afterwards leaves only `tray_icon_app`, `global_hotkey_app`, the
+single-instance window and the IME default.
+
+Two traps if you re-run this by hand:
+
+- `FindWindow` and `Process.MainWindowHandle` both mislead here — the app owns several helper
+  windows. Enumerate and match the title `project-mouse`.
+- Any P/Invoke of `GetWindowTextW` **must** declare `CharSet.Unicode`. Without it the marshaller
+  reads the wide title as ANSI and truncates `project-mouse` to `p`, and you will conclude the
+  window is gone when it is not.
+
+4.6 MB is 2.4 MB above baseline — outside M0's 2 MB tolerance, inside the 8 MB budget. The residue
+is WebView2's, left in our own process after the children exit.
 
 ## SC-002 — rule builder round-trips
 
@@ -56,22 +68,23 @@ npm run tauri dev
 
 ## SC-003 — "Why is my PC awake?"
 
-The interesting cases are all reachable without admin:
+The panel states two things on separate lines and never merges them (research R1 / T014):
 
-| Setup | Expected panel text |
-|---|---|
-| Fresh boot, mode Off, nothing holding | "Nothing is holding this machine awake." |
-| Set mode **Keep presenting** | Attributes it to us by name — not to "something". |
-| Mode Off, but a video playing full-screen in a browser | "Something other than project-mouse is keeping your display on." |
-| Any state | The `powercfg /requests` command is shown as copyable text, with the note that it needs an elevated prompt. |
+| Line | Source | Example |
+|---|---|---|
+| What we hold | our own engine state — exact | *"project-mouse is keeping this machine awake and the display on."* / *"project-mouse is holding nothing."* |
+| What Windows reports | the `EXECUTION_STATE` aggregate, verbatim | *"Windows also reports a request on this machine to keep the system awake and keep the display on."* / *"Windows reports no other request it will show us."* / *"Windows would not tell us what else is holding a power request."* |
 
-**MANUAL cross-check**: open an elevated prompt, run `powercfg /requests`, and confirm the panel
-was telling the truth about *whether* a request is held. It cannot name the holder — that is the
+Below them, always: the caveat that line 2 does not name the program and does not cover every kind
+of request, and `powercfg /requests` as copyable text labelled as needing an elevated prompt. The
+panel never runs it.
+
+**Verified 2026-08-28** on screen, with the first-run "Keep a screen up" profile active: both
+lines rendered as above and the Copy button is present.
+
+**MANUAL cross-check**: open an elevated prompt, run `powercfg /requests`, and confirm line 2 was
+telling the truth about *whether* a request is held. It cannot name the holder — that is the
 documented limit (research R1), not a bug.
-
-**MANUAL, implementation gate (T004b)**: with the app holding **Keep running**, confirm the
-aggregate read reflects our own `PowerSetRequest`. If it does not, the "and it isn't us"
-subtraction is wrong and must be dropped — see research R1 "Open verification".
 
 ## SC-004 — idle clocks
 
@@ -82,7 +95,9 @@ the test that proves the tool can be interrupted at all.
 
 ## SC-005 — keyboard and High Contrast **MANUAL**
 
-- Tab through every page. Every control takes focus, and focus is visible on every one. `rg -n "outline: *none" src` must find nothing.
+- Tab through every page. Every control takes focus, and focus is visible on every one.
+  `rg -n "outline: *none" src` must find nothing. **Verified 2026-08-28**: Tab from a cold
+  first-run window focuses the first choice with a clearly visible ring (captured).
 - Windows Settings → Accessibility → Contrast themes → apply one. Text stays legible, the status
   line and the switch stay distinguishable, no invisible-on-invisible.
 
@@ -99,12 +114,22 @@ text every 2 s — text only, no layout thrash, no transition.
 4. **Confirm no input was synthesized**: Settings → Synthesize input is still **Off**, and
    Activity contains no injection lines.
 
+**Verified 2026-08-28**: choosing "Keep a screen up" wrote a `keep-screen` profile with one
+enabled `KeepPresenting` rule, set it active, left `input_enabled: false`, and the Status page
+immediately read "Keeping the display on".
+
 ## Profile switching (002 T017)
 
 1. Create a second profile, add a rule to it, switch back to the first.
 2. **The regression this guards**: reopen the second profile — its rule is still there. Before
-   the fix in T014, saving flattened the collection to whichever profile the engine held and the
-   other one was destroyed on the next write.
+   the fix in T003, saving flattened the collection to whichever profile the engine held and the
+   other one was destroyed on the next write. **Verified 2026-08-28** against the built binary:
+   a three-profile config survives a save that changes the mode.
+
+   Watch the encoding when hand-writing a config for this test. PowerShell's
+   `Set-Content -Encoding utf8` writes a BOM; the app used to read that as corruption and disable
+   saving, which makes the test *look* like it passed. Fixed, and pinned by a test — but use
+   `[System.IO.File]::WriteAllText` with a BOM-less `UTF8Encoding` anyway.
 3. The tray submenu lists both and switching from it matches the UI.
 
 ## Tray tooltip expiry (002 T020)

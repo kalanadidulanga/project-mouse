@@ -529,6 +529,14 @@ pub fn run() {
             // ~130 MB of WebView2 processes; the app stays alive via prevent_exit.
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 let _ = window.destroy();
+                // Destroying the webview frees the *child processes*, but our own working set
+                // keeps whatever it grew to — Windows does not hand pages back unprompted.
+                // Measured: 27 MB open, still 28 MB thirty seconds after close without this.
+                // Same trim the app does at startup, once teardown has settled.
+                std::thread::spawn(|| {
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                    platform::trim_working_set();
+                });
             }
         })
         .setup(move |app| {

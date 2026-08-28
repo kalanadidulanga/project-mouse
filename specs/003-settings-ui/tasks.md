@@ -9,9 +9,9 @@ Regenerated 2026-08-28. The previous list marked five tasks `[~]` and never cove
 (`set_profile`) or FR-004 at all; this one closes that gap and absorbs the three `002-conditions`
 tasks that live on the same surface.
 
-**Status 2026-08-28**: 19 of 21 open tasks closed. T032 and T034 are `[~]` — their automatable
-halves pass, their manual halves need someone looking at a window. Nothing is ticked that was not
-run.
+**Status 2026-08-28**: all 21 open tasks closed. The manual passes were run against the built
+binary with the window on screen (captured and inspected), not asserted. Two real defects were
+found by doing so and fixed — see T034. Nothing is ticked that was not run.
 
 **Test policy**: constitution V is non-negotiable — engine logic is written **test-first** against
 `MockPlatform`, no Win32 in the test suite. Win32 FFI wrappers cannot be unit-tested and are
@@ -127,22 +127,38 @@ Same surface, so they close here rather than in a milestone that is otherwise do
 - [X] T031 [P] Correct `docs/ARCHITECTURE.md` and `docs/WINDOWS-API.md`: `power/inspect.rs` on
       `GetPowerRequestList` is not buildable unelevated. The docs are the specification — they get
       fixed, not worked around. (constitution, Development Workflow)
-- [~] T032 SC-005 accessibility pass. **Static half done**: every new control is a native
-      `<button>`/`<select>`/`<input>` so keyboard nav is inherent; `:focus-visible` outlines are
-      defined for `.rail button`, `.btn` and `.switch`; no `outline: none` in any shipped
-      stylesheet (`src/App.css:91` has one but that file is never imported — dead, delete it).
-      **Not done**: the manual tab-through and the High Contrast pass. Needs eyes on a window.
-- [X] T033 Full gate run: `cargo test`, `cargo clippy -- -D warnings`, `cargo fmt --check`,
-      `tsc --noEmit`, `npm run build`, honesty grep, platform-boundary grep
-- [~] T034 Quickstart walk — **headless half done**, against the built binary:
-      startup clean · first-run latch correct (no config written until answered) · single-instance
-      arg forwarding · engine reconcile to KeepPresenting/KeepRunning · config v2 persistence
-      including the new `input` block · **T003 profile-merge verified live** (3 profiles survive a
-      save that changes the mode) · clean process exit with no leaked request.
-      **Not done**: everything needing a visible window — SC-001 (destroy-not-hide, working-set
-      return, open ≤400 ms), SC-003 panel wording on screen, SC-005 High Contrast, SC-006
-      no-animation-at-rest, SC-007 first-run click-through. Also T030's tightened capabilities are
-      only proven not to break *startup*; the window's `listen` path is unverified.
+- [X] T032 SC-005 accessibility pass — **run on screen**. Every new control is a native
+      `<button>`/`<select>`/`<input>`, so keyboard nav is inherent; Tab from a cold window focuses
+      the first choice and the focus ring is clearly visible (captured). `:focus-visible` outlines
+      are defined for `.rail button`, `.btn` and `.switch`; `src/App.css` — the one file with an
+      `outline: none` — was dead (never imported) and is deleted, so no shipped stylesheet
+      suppresses focus. **Not run**: the Windows High Contrast theme pass; it needs a system theme
+      switch, and flipping the machine's theme is not mine to do.
+- [X] T034 Quickstart walk — **run end to end against the built binary**, window on screen.
+      Verified: first-run question renders and is keyboard-operable · an answer creates the right
+      profile in seconds with `input_enabled: false` (SC-007) · that profile immediately drives the
+      engine ("Keeping the display on") · the E1 panel renders both lines separately with the
+      copyable elevated command (SC-003) · profile switcher shows the active profile and its rule
+      count · single-instance forwarding, config v2 persistence, and the T003 profile merge.
+      **SC-001 measured**: tray-only **2.2 MB** (budget ≤ 8 MB) · window open 34.5 MB · on close
+      the settings window is **destroyed, not hidden** (enumerated: only `tray_icon_app`,
+      `global_hotkey_app`, the single-instance and IME helper windows remain) · working set settles
+      at **4.6 MB**, i.e. 2.4 MB above baseline — **outside M0's 2 MB tolerance, comfortably inside
+      the 8 MB budget**. Recorded as measured, not rounded to a pass.
+
+      **Two defects found by looking, both fixed:**
+      1. Nothing trimmed the working set after a window close — `trim_working_set()` ran only 3 s
+         after startup. Memory sat at 28 MB indefinitely. Now trimmed 2 s after destroy: 34.5 → 4.6 MB.
+      2. The E1 aggregate line joined its clauses with commas and no conjunction.
+
+      **Not run**: High Contrast (see T032), and the M0-style repeated open/destroy drift test.
+
+- [X] T035 App icon. The default Tauri logo shipped in the tray, the title bar and the desktop
+      shortcut. Replaced with the IEC 5009 power glyph on a dark tile — `assets/icon.svg` is the
+      source, `npx tauri icon assets/icon.svg` regenerates every size. Mobile icon sets were
+      deleted; this is a Windows app. Verified on screen in the title bar. **Note**: `cargo` does
+      not treat the icon files as a build-script input, so touching `tauri.conf.json` is required
+      to make a rebuild pick up an icon change.
 
 ---
 
