@@ -4,6 +4,7 @@ pub mod evaluator;
 pub mod idle;
 pub mod input_engine;
 pub mod modes;
+pub mod motion;
 pub mod profiles;
 pub mod rule;
 pub mod snapshot;

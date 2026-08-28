@@ -103,12 +103,27 @@ impl InputInjector for NoopInjector {
     fn key(&self, _vk: u16) -> Result<()> {
         Ok(())
     }
+    fn move_relative(&self, _dx: i32, _dy: i32) -> Result<()> {
+        Ok(())
+    }
 }
 
-/// Test double: counts injections.
+/// Test double: counts injections and records every relative move, so a test can assert the
+/// cursor was actually put back where it started.
 #[derive(Clone, Default)]
 pub struct MockInjector {
     pub jiggles: Arc<Mutex<u32>>,
+    pub moves: Arc<Mutex<Vec<(i32, i32)>>>,
+}
+impl MockInjector {
+    /// Net displacement of every move so far. Should be (0, 0) at the end of a full cycle.
+    pub fn net_move(&self) -> (i32, i32) {
+        self.moves
+            .lock()
+            .unwrap()
+            .iter()
+            .fold((0, 0), |(x, y), (dx, dy)| (x + dx, y + dy))
+    }
 }
 impl InputInjector for MockInjector {
     fn virtual_jiggle(&self) -> Result<()> {
@@ -117,6 +132,11 @@ impl InputInjector for MockInjector {
     }
     fn key(&self, _vk: u16) -> Result<()> {
         *self.jiggles.lock().unwrap() += 1;
+        Ok(())
+    }
+    fn move_relative(&self, dx: i32, dy: i32) -> Result<()> {
+        *self.jiggles.lock().unwrap() += 1;
+        self.moves.lock().unwrap().push((dx, dy));
         Ok(())
     }
 }

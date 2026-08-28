@@ -36,10 +36,15 @@ type AwakeReport = {
 
 type ProfileSummary = { id: string; name: string; active: boolean; rule_count: number };
 
+type Motion = "Virtual" | "Line" | "Square" | "Circle";
+
 type InputSettings = {
   interval_secs: number;
   idle_threshold_secs: number;
   key: number;
+  motion: Motion;
+  distance_px: number;
+  vary_pct: number;
 };
 
 type Page = "status" | "rules" | "activity" | "settings";
@@ -514,12 +519,21 @@ function ActivityPage({ logs }: { logs: string[] }) {
 }
 
 /** Virtual-key codes worth offering. F15 is the category's convention (Caffeine); it is also the
- *  one that breaks in PuTTY and Google Docs, which is exactly why the choice is the user's. */
+ *  one that breaks in PuTTY, PowerPoint and Google Docs, which is exactly why the choice is the
+ *  user's. Key 0 means "send movement instead" — the Movement row then applies. */
 const KEYS: [number, string][] = [
-  [0, "virtual jiggle (nothing moves on screen)"],
-  [0x7e, "F15"],
-  [0x91, "Scroll Lock"],
-  [0x10, "Shift"],
+  [0, "mouse movement"],
+  [0x7e, "F15 keypress"],
+  [0x91, "Scroll Lock keypress"],
+  [0x10, "Shift keypress"],
+];
+
+/** FEATURES C1/C2. Virtual is the default and the only one that cannot show up on a projector. */
+const MOTIONS: [Motion, string][] = [
+  ["Virtual", "Virtual — nothing moves on screen"],
+  ["Line", "Back and forth"],
+  ["Square", "Around a square"],
+  ["Circle", "Around a circle"],
 ];
 
 function InputSettingsForm({ onChanged }: { onChanged: () => void }) {
@@ -542,6 +556,8 @@ function InputSettingsForm({ onChanged }: { onChanged: () => void }) {
       onChanged();
     });
   };
+
+  const visible = s.key === 0 && s.motion !== "Virtual";
 
   return (
     <div style={{ marginTop: 12 }}>
@@ -593,8 +609,73 @@ function InputSettingsForm({ onChanged }: { onChanged: () => void }) {
           </select>
         </span>
       </div>
+
+      {s.key === 0 && (
+        <div className="row">
+          <span className="k">Movement</span>
+          <span className="v">
+            <select
+              className="btn"
+              value={s.motion}
+              onChange={(e) => save({ ...s, motion: e.target.value as Motion })}
+            >
+              {MOTIONS.map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </span>
+        </div>
+      )}
+
+      {visible && (
+        <div className="row">
+          <span className="k">Distance</span>
+          <span className="v">
+            <input
+              className="btn"
+              type="number"
+              min={1}
+              max={500}
+              style={{ width: 90 }}
+              value={s.distance_px}
+              onChange={(e) => setS({ ...s, distance_px: Number(e.target.value) })}
+              onBlur={() => save(s)}
+            />{" "}
+            pixels per step
+          </span>
+        </div>
+      )}
+
+      <div className="row">
+        <span className="k">Vary by</span>
+        <span className="v">
+          <input
+            className="btn"
+            type="number"
+            min={0}
+            max={50}
+            style={{ width: 90 }}
+            value={s.vary_pct}
+            onChange={(e) => setS({ ...s, vary_pct: Number(e.target.value) })}
+            onBlur={() => save(s)}
+          />{" "}
+          percent
+        </span>
+      </div>
+
       <p className="note">
-        {saved ? "Saved." : "Interval is clamped to 5 s–1 h."}
+        {saved
+          ? "Saved."
+          : visible
+            ? "A visible path always returns the cursor to where it started. Interval is clamped to 5 s\u20131 h, distance to 500 px."
+            : "Interval is clamped to 5 s\u20131 h."}
+      </p>
+      <p className="note">
+        Varying the interval and distance keeps this from lining up with other things that run on a
+        timer, and stops the cursor landing on the same pixel every time. Set it to 0 for a fixed
+        interval.
       </p>
     </div>
   );

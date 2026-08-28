@@ -71,6 +71,10 @@ pub trait InputInjector: Send + Sync {
     fn virtual_jiggle(&self) -> Result<()>;
     /// Press and release a virtual key (default `VK_F15`), down+up in one call (C3, gotcha 8).
     fn key(&self, vk: u16) -> Result<()>;
+    /// Visible relative movement (C2). Goes through pointer acceleration, so the pixels are a
+    /// request rather than a promise — `core::motion` closes its cycles by construction instead
+    /// of relying on the distance coming back exactly.
+    fn move_relative(&self, dx: i32, dy: i32) -> Result<()>;
 }
 
 // ponytail: autostart is handled by the cross-platform `tauri-plugin-autostart` (HKCU\Run on
