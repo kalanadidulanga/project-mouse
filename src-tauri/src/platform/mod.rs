@@ -71,13 +71,8 @@ pub trait InputInjector: Send + Sync {
     fn virtual_jiggle(&self) -> Result<()>;
     /// Press and release a virtual key (default `VK_F15`), down+up in one call (C3, gotcha 8).
     fn key(&self, vk: u16) -> Result<()>;
-    /// Visible relative movement (C2). Goes through pointer acceleration, so the pixels are a
-    /// request rather than a promise — `core::motion` closes its cycles by construction instead
-    /// of relying on the distance coming back exactly.
-    fn move_relative(&self, dx: i32, dy: i32) -> Result<()>;
     /// Trace a whole path of relative moves `step_ms` apart, and return how long it took in ms.
     /// The engine treats that whole span as its own input (spec 005 FR-006).
-    #[allow(dead_code)] // Used in Task 2
     fn move_path(&self, steps: &[(i32, i32)], step_ms: u32) -> Result<u32>;
 }
 

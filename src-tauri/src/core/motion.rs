@@ -77,11 +77,9 @@ impl Motion {
 
 /// The most steps one trigger may take. At [`STEP_MS`] apart that is under half a second of
 /// sleeping, which Windows' ~15.6 ms timer can stretch to about 0.6 s.
-#[allow(dead_code)] // Used in Task 2
 pub const MAX_PATH_STEPS: u32 = 40;
 
 /// Milliseconds between the steps of a path.
-#[allow(dead_code)] // Used in Task 2
 pub const STEP_MS: u32 = 10;
 
 /// One trigger's whole closed path (spec 005 FR-005): every leg of the cycle, split into steps
@@ -89,7 +87,6 @@ pub const STEP_MS: u32 = 10;
 /// leg (the split telescopes), and the legs already sum to zero, so the path ends where it
 /// started. Opposite legs split into mirrored steps, so pointer acceleration treats the way out
 /// and the way back alike. `Virtual` and a zero distance have no path.
-#[allow(dead_code)] // Used in Task 2
 pub fn path(motion: Motion, distance: i32) -> Vec<(i32, i32)> {
     if motion == Motion::Virtual {
         return Vec::new();

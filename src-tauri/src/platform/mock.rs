@@ -4,11 +4,12 @@
 // Windows build by design.
 #![allow(dead_code)]
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use super::{
-    ForegroundMonitor, InputInjector, PowerGuard, PowerInspector, PowerSource, ProcessMonitor,
-    Result, SessionMonitor,
+    ForegroundMonitor, InputInjector, PlatformError, PowerGuard, PowerInspector, PowerSource,
+    ProcessMonitor, Result, SessionMonitor,
 };
 use crate::core::rule::NotifState;
 
@@ -103,23 +104,22 @@ impl InputInjector for NoopInjector {
     fn key(&self, _vk: u16) -> Result<()> {
         Ok(())
     }
-    fn move_relative(&self, _dx: i32, _dy: i32) -> Result<()> {
-        Ok(())
-    }
     fn move_path(&self, _steps: &[(i32, i32)], _step_ms: u32) -> Result<u32> {
         Ok(0)
     }
 }
 
-/// Test double: counts injections and records every relative move, so a test can assert the
-/// cursor was actually put back where it started.
+/// Test double: counts calls (failed ones included) and records every step of every path, so a
+/// test can assert the cursor was put back where it started.
 #[derive(Clone, Default)]
 pub struct MockInjector {
     pub jiggles: Arc<Mutex<u32>>,
     pub moves: Arc<Mutex<Vec<(i32, i32)>>>,
+    /// Make every call fail, as `SendInput` does on a desktop it cannot reach.
+    pub fail: Arc<AtomicBool>,
 }
 impl MockInjector {
-    /// Net displacement of every move so far. Should be (0, 0) at the end of a full cycle.
+    /// Net displacement of every move so far. Should be (0, 0) after any whole path.
     pub fn net_move(&self) -> (i32, i32) {
         self.moves
             .lock()
@@ -127,23 +127,23 @@ impl MockInjector {
             .iter()
             .fold((0, 0), |(x, y), (dx, dy)| (x + dx, y + dy))
     }
+    fn call(&self) -> Result<()> {
+        *self.jiggles.lock().unwrap() += 1;
+        if self.fail.load(Ordering::SeqCst) {
+            return Err(PlatformError("mock: input blocked".into()));
+        }
+        Ok(())
+    }
 }
 impl InputInjector for MockInjector {
     fn virtual_jiggle(&self) -> Result<()> {
-        *self.jiggles.lock().unwrap() += 1;
-        Ok(())
+        self.call()
     }
     fn key(&self, _vk: u16) -> Result<()> {
-        *self.jiggles.lock().unwrap() += 1;
-        Ok(())
-    }
-    fn move_relative(&self, dx: i32, dy: i32) -> Result<()> {
-        *self.jiggles.lock().unwrap() += 1;
-        self.moves.lock().unwrap().push((dx, dy));
-        Ok(())
+        self.call()
     }
     fn move_path(&self, steps: &[(i32, i32)], step_ms: u32) -> Result<u32> {
-        *self.jiggles.lock().unwrap() += 1;
+        self.call()?;
         self.moves.lock().unwrap().extend_from_slice(steps);
         Ok(steps.len() as u32 * step_ms)
     }

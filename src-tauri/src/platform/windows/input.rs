@@ -18,6 +18,27 @@ impl WindowsInputInjector {
     pub fn new() -> Self {
         Self
     }
+
+    /// One relative step of a path. Goes through pointer acceleration, so the pixels are a
+    /// request, not a promise. Paths close by construction instead (`core::motion::path`).
+    fn move_relative(&self, dx: i32, dy: i32) -> Result<()> {
+        if dx == 0 && dy == 0 {
+            return Ok(());
+        }
+        send(&[INPUT {
+            r#type: INPUT_MOUSE,
+            Anonymous: INPUT_0 {
+                mi: MOUSEINPUT {
+                    dx,
+                    dy,
+                    mouseData: 0,
+                    dwFlags: MOUSEEVENTF_MOVE,
+                    time: 0,
+                    dwExtraInfo: MAGIC_EXTRA,
+                },
+            },
+        }])
+    }
 }
 
 impl InputInjector for WindowsInputInjector {
@@ -38,25 +59,6 @@ impl InputInjector for WindowsInputInjector {
             },
         };
         send(&[mouse(1), mouse(-1)])
-    }
-
-    fn move_relative(&self, dx: i32, dy: i32) -> Result<()> {
-        if dx == 0 && dy == 0 {
-            return Ok(());
-        }
-        send(&[INPUT {
-            r#type: INPUT_MOUSE,
-            Anonymous: INPUT_0 {
-                mi: MOUSEINPUT {
-                    dx,
-                    dy,
-                    mouseData: 0,
-                    dwFlags: MOUSEEVENTF_MOVE,
-                    time: 0,
-                    dwExtraInfo: MAGIC_EXTRA,
-                },
-            },
-        }])
     }
 
     fn key(&self, vk: u16) -> Result<()> {
