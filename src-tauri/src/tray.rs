@@ -65,6 +65,7 @@ pub fn tooltip(
             None => "Running".to_string(),
         },
         StatusKind::RunningPowerOnly => "Running · keeping the PC awake".to_string(),
+        StatusKind::Paused => "Paused".to_string(),
         StatusKind::RunningBlocked => "Running · Windows blocked the last move".to_string(),
     };
     let mut s = format!("project-mouse: {state}");

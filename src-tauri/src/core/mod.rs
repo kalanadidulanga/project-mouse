@@ -1,3 +1,4 @@
+pub mod apps;
 pub mod autopilot;
 pub mod awake;
 pub mod engine;

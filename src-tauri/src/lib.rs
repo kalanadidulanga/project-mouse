@@ -200,7 +200,7 @@ pub(crate) fn apply_mode(app: &tauri::AppHandle, mode: WakeMode) {
         let input = app.state::<SharedInput>();
         let mut e = engine.lock().unwrap();
         let mut ie = input.lock().unwrap();
-        running::apply(&mut e, &mut ie, &settings, mode);
+        running::apply(&mut e, &mut ie, &settings, mode, None);
         e.tick(&snap);
     }
     after_change(app);
@@ -431,7 +431,13 @@ pub fn run() {
         None if run_settings.start_on_launch => run_settings.start_mode(),
         None => WakeMode::Off,
     };
-    running::apply(&mut engine, &mut input_engine, &run_settings, initial_mode);
+    running::apply(
+        &mut engine,
+        &mut input_engine,
+        &run_settings,
+        initial_mode,
+        None,
+    );
 
     let engine: SharedEngine = Arc::new(Mutex::new(engine));
     // The engine always holds a profile, so the collection is never empty.
@@ -601,7 +607,7 @@ pub fn run() {
                         (ie.enabled() && ie.blocked, ie.next_move_in_secs())
                     };
                     let move_mouse = sched_run.lock().unwrap().move_mouse;
-                    let kind = running::status_kind(on, move_mouse, blocked, effective);
+                    let kind = running::status_kind(on, move_mouse, blocked, effective, false);
                     let tip = tray::tooltip(kind, next, remaining, update_available().as_deref());
                     // Pushed only when the text changes. While running that is once a second,
                     // which is also what keeps an open window's countdown live.

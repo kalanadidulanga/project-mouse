@@ -102,7 +102,7 @@ pub fn get_status(
         (ie.enabled() && ie.blocked, ie.next_move_in_secs())
     };
     Status {
-        kind: running::status_kind(on, settings.move_mouse, blocked, effective),
+        kind: running::status_kind(on, settings.move_mouse, blocked, effective, false),
         running: on,
         next_move_in_secs,
         keep_screen_on: settings.keep_screen_on,

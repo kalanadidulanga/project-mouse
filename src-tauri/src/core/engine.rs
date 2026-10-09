@@ -14,6 +14,7 @@ use crate::power::PowerReconciler;
 pub struct Engine {
     reconciler: PowerReconciler,
     manual: WakeMode,
+    manual_suspended: bool,
     profile: Profile,
     last: WakeMode,
 }
@@ -23,6 +24,7 @@ impl Engine {
         Self {
             reconciler: PowerReconciler::new(power),
             manual: WakeMode::Off,
+            manual_suspended: false,
             profile: Profile::new("default", "Default"),
             last: WakeMode::Off,
         }
@@ -30,6 +32,12 @@ impl Engine {
 
     pub fn set_manual(&mut self, mode: WakeMode) {
         self.manual = mode;
+    }
+
+    /// A battery pause (spec 006 FR-012): Start stays on, but its power request lets go. Rules,
+    /// such as "keep awake while these apps run", still hold.
+    pub fn set_manual_suspended(&mut self, on: bool) {
+        self.manual_suspended = on;
     }
 
     pub fn manual(&self) -> WakeMode {
@@ -68,7 +76,12 @@ impl Engine {
 
     /// Recompute desired = max(manual, rules) and reconcile. Idempotent across identical ticks.
     pub fn tick(&mut self, snap: &Snapshot) {
-        let desired = self.manual.max(desired_mode(&self.profile, snap));
+        let manual = if self.manual_suspended {
+            WakeMode::Off
+        } else {
+            self.manual
+        };
+        let desired = manual.max(desired_mode(&self.profile, snap));
         if desired != self.last {
             tracing::info!(?desired, "reconciling wake mode");
             self.last = desired;
