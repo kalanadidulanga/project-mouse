@@ -37,8 +37,19 @@ ROADMAP M5 + UPDATES.md into one runnable list. Items marked **[human]** cannot 
    Actions + free Releases CDN). Then tag `vX.Y.Z` → `release.yml` builds, signs, drafts a release
    with the installer + `latest.json`. Review the draft → publish. Installed apps update from there.
 3. **[human, once] Authenticode / SmartScreen**: apply to [SignPath Foundation](https://signpath.org/)
-   (free for OSS). The repo already meets its conditions: OSI license (MIT), MFA, reproducible build,
-   published signing policy. Reputation accrues per file-hash over time: EV no longer buys a bypass.
+   (free for OSS). Reputation accrues per file hash over time: EV no longer buys a bypass.
+   - ✅ Repo side: `LICENSE` (MIT), `license` in Cargo.toml and package.json, the
+     [code signing policy](../README.md#code-signing-policy) with roles and the privacy statement
+     (the update check is the one network request), install/uninstall steps in the README, and a
+     release body that describes the app and links the policy.
+   - **[human]** Turn on 2FA for the GitHub account (and later for SignPath), then apply at
+     <https://signpath.org/apply> with the repo URL, the Releases page and the policy link.
+   - **After approval**, wire signing into `release.yml` with the organization ID, project and
+     policy slugs and a `SIGNPATH_API_TOKEN` secret. Order matters, because the minisign `.sig` must
+     cover the final bytes: `tauri build --no-bundle` → sign `project-mouse.exe` →
+     `tauri bundle --bundles nsis` → sign the installer → `tauri signer sign` the signed installer →
+     write `latest.json` → upload to the draft. tauri-action's own signing pass would sign the
+     unsigned installer, so it cannot stay as is.
 4. **[human] Tag `vX.Y.Z`** → `release.yml` runs the CI gates, then builds, signs the update
    artifacts, drafts the GitHub release, and pushes `latest.json` to the cPanel endpoint. Review the
    draft, then publish.

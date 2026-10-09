@@ -3,6 +3,7 @@ name = "project-mouse"
 version = "1.0.0"
 description = "A task-bound wake lock for Windows"
 authors = ["Kalana"]
+license = "MIT"
 edition = "2021"
 
 [lib]

@@ -10,6 +10,13 @@ hold everything else: how it moves, when it pauses, schedules, quiet times and a
 the window and it keeps running in the tray, next to the clock. **Stop**, the tray menu or
 Ctrl+Alt+K turns it off.
 
+**Install:** download `project-mouse_X.Y.Z_x64-setup.exe` from
+[Releases](https://github.com/kalanadidulanga/project-mouse/releases) and run it (no admin
+rights needed). It updates itself from there: the tray shows when a new version is out, and
+*Check for updates* installs it. **Uninstall:** Settings > Apps > Installed apps > project-mouse >
+Uninstall; if `%LOCALAPPDATA%\project-mouse` (settings and logs) is still there, delete it.
+Signing: see the [code signing policy](#code-signing-policy).
+
 It does not change your power plan, and it releases everything on exit. Monitoring software can
 detect simulated input. With *Move the mouse* off (Behaviour) it sends no input at all, and then
 it cannot defeat a screen lock or a chat presence indicator.
@@ -248,6 +255,27 @@ Read in this order.
 
 Interactive UI mockup: https://claude.ai/code/artifact/9551d990-b62a-463f-9937-34bbd7eecf4c
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/). *(Applied for. Until it is granted, the installer
+is unsigned and Windows SmartScreen warns on first install: More info > Run anyway.)*
+
+- Committers and reviewers: [kalanadidulanga](https://github.com/kalanadidulanga)
+- Approvers: [kalanadidulanga](https://github.com/kalanadidulanga)
+
+Every release is built by GitHub Actions from this repository
+([release.yml](.github/workflows/release.yml)), and every signing request is approved by hand.
+
+**Privacy.** This program will not transfer any information to other networked systems unless
+specifically requested by the user or the person installing or operating it, with one
+exception: it asks GitHub whether a newer version exists, by downloading `latest.json` from
+github.com 10 seconds after it starts and then about every six hours. That request carries
+nothing about you or your PC beyond what any web request carries, such as your IP address. Turn
+it off under About > Updates > *Check for updates automatically*; *Check now* then runs only
+when you press it. GitHub's handling of the request is covered by the
+[GitHub Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
+
 ## License
 
-MIT.
+MIT, see [LICENSE](LICENSE).
