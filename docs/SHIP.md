@@ -39,8 +39,14 @@ ROADMAP M5 + UPDATES.md into one runnable list. Items marked **[human]** cannot 
 3. **[human, once] Authenticode / SmartScreen**: apply to [SignPath Foundation](https://signpath.org/)
    (free for OSS). The repo already meets its conditions: OSI license (MIT), MFA, reproducible build,
    published signing policy. Reputation accrues per file-hash over time: EV no longer buys a bypass.
-4. **[human] Tag `vX.Y.Z`** → `release.yml` builds, signs the update artifacts, drafts the GitHub
-   release, and pushes `latest.json` to the cPanel endpoint. Review the draft, then publish.
+4. **[human] Tag `vX.Y.Z`** → `release.yml` runs the CI gates, then builds, signs the update
+   artifacts, drafts the GitHub release, and pushes `latest.json` to the cPanel endpoint. Review the
+   draft, then publish.
+   - If the job fails at *Creating one* with `Resource not accessible by integration` (v1.0.0 did,
+     with the same token permissions v0.2.1 had), create the draft yourself and re-run the failed
+     job. It finds the draft and uploads into it:
+     `gh release create vX.Y.Z --verify-tag --draft --title "project-mouse vX.Y.Z" --notes "See CHANGELOG.md"`
+     then `gh run rerun <run id> --failed`.
 5. **[human] Submit** the signed installer to the
    [Microsoft Defender false-positive portal](https://www.microsoft.com/en-us/wdsi/filesubmission)
    **before** release; publish a winget manifest; publish the release SHA-256.
