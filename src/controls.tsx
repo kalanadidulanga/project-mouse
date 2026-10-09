@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
+import { DAY_NAMES, hhmm, toMinutes } from "./types";
 
 /** An on/off switch with the keyboard behaviour of a real one. */
 export function Switch({ on, onChange, label }: { on: boolean; onChange: (next: boolean) => void; label: string }) {
@@ -64,15 +65,89 @@ export function NumberField({
   );
 }
 
-/** One settings line: what it is and what it does on the left, the control on the right. */
-export function SettingRow({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
+/** One setting: a short label, at most one hint line, and the long explanation behind a "?"
+ *  that opens and closes with the keyboard (spec 006 FR-025). */
+export function SettingRow({
+  title,
+  hint,
+  help,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  help?: ReactNode;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
   return (
-    <div className="setting">
-      <div>
-        <div className="setting-title">{title}</div>
-        {note && <div className="note">{note}</div>}
+    <div className="setting-wrap">
+      <div className="setting">
+        <div>
+          <div className="setting-title">
+            {title}
+            {help && (
+              <button
+                type="button"
+                className="help"
+                aria-expanded={open}
+                aria-controls={id}
+                aria-label={`More about ${title}`}
+                onClick={() => setOpen(!open)}
+              >
+                ?
+              </button>
+            )}
+          </div>
+          {hint && <div className="note">{hint}</div>}
+        </div>
+        <div className="setting-control">{children}</div>
       </div>
-      <div className="setting-control">{children}</div>
+      {help && open && (
+        <div id={id} className="help-text">
+          {help}
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Seven toggle chips, Monday first. */
+export function DaysPicker({ days, onChange }: { days: boolean[]; onChange: (d: boolean[]) => void }) {
+  return (
+    <div className="days" role="group" aria-label="Days">
+      {DAY_NAMES.map((n, i) => (
+        <button
+          key={n}
+          type="button"
+          className={`chip ${days[i] ? "on" : ""}`}
+          aria-pressed={days[i]}
+          onClick={() => onChange(days.map((d, j) => (j === i ? !d : d)))}
+        >
+          {n}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** A time of day, as minutes since midnight. An empty or partial value is ignored. */
+export function TimeField({
+  minutes,
+  onChange,
+  label,
+}: {
+  minutes: number;
+  onChange: (m: number) => void;
+  label: string;
+}) {
+  return (
+    <input
+      type="time"
+      className="btn time"
+      aria-label={label}
+      value={hhmm(minutes)}
+      onChange={(e) => e.target.value && onChange(toMinutes(e.target.value))}
+    />
   );
 }

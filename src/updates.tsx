@@ -75,7 +75,7 @@ export function UpdateSettings() {
       <SettingRow title="This version">
         <span>{u.current}</span>
       </SettingRow>
-      <SettingRow title="Check for updates automatically" note="A check only tells you an update exists. It never installs one on its own.">
+      <SettingRow title="Check for updates automatically" hint="A check only tells you an update exists. It never installs one on its own.">
         <Switch
           label="Check for updates automatically"
           on={u.auto_check}
