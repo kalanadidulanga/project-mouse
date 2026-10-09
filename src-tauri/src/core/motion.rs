@@ -50,6 +50,15 @@ const COMPASS: [(i32, i32); 8] = [
     (-7, -7),
 ];
 
+/// `x` tenths of `d`, truncated, but never to nothing: at 1 px a diagonal still moves 1 px, so the
+/// path is not empty and is not mistaken for a blocked move.
+fn scale(x: i32, d: i32) -> i32 {
+    match x * d / 10 {
+        0 if d != 0 => x.signum(),
+        v => v,
+    }
+}
+
 impl Motion {
     /// Every direction, for tests that must cover them all.
     #[allow(dead_code)]
@@ -79,7 +88,7 @@ impl Motion {
     fn legs(self, d: i32, seed: u32) -> Vec<(i32, i32)> {
         let out_and_back = |i: usize| {
             let (x, y) = COMPASS[i];
-            let (a, b) = (x * d / 10, y * d / 10);
+            let (a, b) = (scale(x, d), scale(y, d));
             vec![(a, b), (-a, -b)]
         };
         match self {
@@ -90,7 +99,7 @@ impl Motion {
                 const OCTANT: [(i32, i32); 4] = [(7, 3), (3, 7), (-3, 7), (-7, 3)];
                 let half: Vec<(i32, i32)> = OCTANT
                     .iter()
-                    .map(|&(x, y)| (x * d / 10, y * d / 10))
+                    .map(|&(x, y)| (scale(x, d), scale(y, d)))
                     .collect();
                 half.iter()
                     .copied()
@@ -202,6 +211,18 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A 1 px move is still a move: an empty path would be reported as Windows blocking it.
+    #[test]
+    fn every_motion_moves_at_one_pixel() {
+        for m in Motion::ALL.into_iter().filter(|&m| m != Motion::Virtual) {
+            for seed in 0..16 {
+                assert!(!path(m, 1, seed).is_empty(), "{m:?} at 1px, seed {seed}");
+            }
+        }
+        assert_eq!(path(Motion::NorthEast, 1, 0), vec![(1, -1), (-1, 1)]);
+        assert_eq!(path(Motion::NorthEast, 10, 0).len(), 6, "d >= 10 unchanged");
     }
 
     #[test]
