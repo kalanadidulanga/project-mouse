@@ -2,17 +2,17 @@
 import { useState } from "react";
 import Home from "./home";
 import Movement from "./movement";
-import Settings from "./settings";
+import Behaviour from "./behaviour";
 import Advanced from "./advanced";
 import { Icon, type IconName } from "./icons";
 import "./styles.css";
 
-export type Page = "home" | "movement" | "behaviour" | "settings" | "advanced";
+export type Page = "home" | "movement" | "behaviour" | "advanced";
 
 const PAGES: [Page, string, IconName][] = [
   ["home", "Home", "home"],
   ["movement", "Movement", "movement"],
-  ["settings", "Settings", "behaviour"],
+  ["behaviour", "Behaviour", "behaviour"],
   ["advanced", "Advanced", "about"],
 ];
 
@@ -37,8 +37,8 @@ export default function App() {
       <main className="content">
         {page === "movement" ? (
           <Movement />
-        ) : page === "settings" ? (
-          <Settings />
+        ) : page === "behaviour" ? (
+          <Behaviour />
         ) : page === "advanced" ? (
           <Advanced />
         ) : (
