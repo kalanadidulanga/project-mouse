@@ -2,6 +2,9 @@
 //! tagged with a magic `dwExtraInfo`; down+up go in one call.
 
 use windows::Win32::Foundation::POINT;
+use windows::Win32::Graphics::Gdi::{
+    GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYBD_EVENT_FLAGS,
     KEYEVENTF_KEYUP, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_MOVE, MOUSEEVENTF_VIRTUALDESK, MOUSEINPUT,
@@ -71,6 +74,9 @@ impl InputInjector for WindowsInputInjector {
         let started = std::time::Instant::now();
         let origin = cursor_pos().ok_or_else(|| PlatformError("GetCursorPos failed".into()))?;
         let desk = Desk::current();
+        // Steps stay on the monitor the move began on. The virtual desktop's box includes dead
+        // zones between monitors of different sizes, and Windows snaps a point that lands there.
+        let screen = Desk::monitor_at(origin).unwrap_or(desk);
         let mut target = origin;
         let mut aborted = false;
         for (i, &(dx, dy)) in steps.iter().enumerate() {
@@ -85,8 +91,14 @@ impl InputInjector for WindowsInputInjector {
                     break;
                 }
             }
-            target = desk.clamp((target.0 + dx, target.1 + dy));
-            send(&[absolute(desk.normalise(target))])?;
+            target = screen.clamp((target.0 + dx, target.1 + dy));
+            if let Err(e) = send(&[absolute(desk.normalise(target))]) {
+                // Do not leave the cursor part way along the path.
+                unsafe {
+                    let _ = SetCursorPos(origin.0, origin.1);
+                }
+                return Err(e);
+            }
         }
         // Absolute coordinates round to 1/65535 of the desktop, and a step clipped at a screen
         // edge leaves the sum short. Either way, land exactly where we began. SetCursorPos is not
@@ -127,6 +139,25 @@ impl Desk {
                 h: GetSystemMetrics(SM_CYVIRTUALSCREEN).max(2),
             }
         }
+    }
+
+    /// The rectangle of the monitor nearest `p`.
+    fn monitor_at((x, y): (i32, i32)) -> Option<Self> {
+        let mut info = MONITORINFO {
+            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
+        unsafe {
+            let m = MonitorFromPoint(POINT { x, y }, MONITOR_DEFAULTTONEAREST);
+            GetMonitorInfoW(m, &mut info).as_bool().then_some(())?;
+        }
+        let r = info.rcMonitor;
+        Some(Desk {
+            x: r.left,
+            y: r.top,
+            w: (r.right - r.left).max(1),
+            h: (r.bottom - r.top).max(1),
+        })
     }
 
     fn clamp(self, (px, py): (i32, i32)) -> (i32, i32) {
@@ -209,6 +240,27 @@ mod tests {
             let back = (nx as i64 * (ONE.w as i64 - 1) + 32_767) / 65_535;
             assert_eq!(back, px as i64, "pixel {px} came back as {back}");
         }
+    }
+
+    #[test]
+    fn a_monitor_smaller_than_the_desktop_keeps_steps_off_the_dead_zone() {
+        // A 1080p monitor beside a taller 1440p one: the desktop box spans y 0..1440, but the
+        // short monitor ends at y 1079 and anything below it is dead zone.
+        let desk = Desk {
+            x: 0,
+            y: 0,
+            w: 3840,
+            h: 1440,
+        };
+        let short = Desk {
+            x: 0,
+            y: 0,
+            w: 1920,
+            h: 1080,
+        };
+        assert_eq!(desk.clamp((100, 1300)), (100, 1300));
+        assert_eq!(short.clamp((100, 1300)), (100, 1079));
+        assert_eq!(short.clamp((2000, 50)), (1919, 50));
     }
 
     #[test]
