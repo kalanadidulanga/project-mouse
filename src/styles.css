@@ -68,7 +68,6 @@ body {
 .rail button:hover { background: var(--surface-2); }
 .rail button.active { background: var(--surface-2); font-weight: 600; }
 .rail button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.rail .spacer { flex: 1; }
 
 .content { padding: 20px 24px; overflow-y: auto; }
 .content h1 { font-size: 15px; font-weight: 600; margin: 0 0 16px; }
@@ -131,26 +130,17 @@ body {
 .log { font-family: "Cascadia Mono", "Consolas", monospace; font-size: 12px; line-height: 1.5; color: var(--text-2); white-space: pre-wrap; word-break: break-word; }
 
 .note { color: var(--text-2); font-size: 13px; line-height: 1.5; }
-.mono-hint { font-family: "Cascadia Mono", "Consolas", monospace; background: var(--surface-2); padding: 2px 6px; border-radius: var(--radius); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
 
 /* Rule builder + timer row (M3 completion). Layout only, no motion, per UI-UX §4. */
-.builder {
-  margin-top: 20px;
-  border-top: 1px solid var(--border);
-  padding-top: 16px;
-}
 .cond-row {
   display: flex;
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
-}
-.cond {
-  margin-top: 10px;
 }
 
 /* "Why is my PC awake?" (FEATURES E1). */
@@ -257,3 +247,7 @@ body {
 .entry .grow { flex: 1; }
 .empty { color: var(--text-2); font-size: 13px; padding: 8px 0; }
 .icon-btn { padding: 4px 9px; }
+
+details.troubleshoot > summary { cursor: default; font-size: 13px; font-weight: 600; padding: 4px 0; }
+details.troubleshoot > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+details.troubleshoot h2 { margin-top: 16px; }

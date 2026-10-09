@@ -1,14 +1,15 @@
-// The window (spec 006 FR-024): tabs down the left, one concern each, as in Move Mouse.
+// The window (spec 006 FR-024): seven tabs down the left, one concern each, as in Move Mouse.
 import { useState } from "react";
 import Home from "./home";
 import Movement from "./movement";
 import Behaviour from "./behaviour";
-import Advanced from "./advanced";
-import { Schedules, Blackouts } from "./timetable";
+import { Blackouts, Schedules } from "./timetable";
+import Appearance from "./appearance";
+import About from "./about";
 import { Icon, type IconName } from "./icons";
 import "./styles.css";
 
-export type Page = "home" | "movement" | "behaviour" | "schedules" | "blackouts" | "advanced";
+export type Page = "home" | "movement" | "behaviour" | "schedules" | "blackouts" | "appearance" | "about";
 
 const PAGES: [Page, string, IconName][] = [
   ["home", "Home", "home"],
@@ -16,8 +17,28 @@ const PAGES: [Page, string, IconName][] = [
   ["behaviour", "Behaviour", "behaviour"],
   ["schedules", "Schedules", "schedules"],
   ["blackouts", "Blackouts", "blackouts"],
-  ["advanced", "Advanced", "about"],
+  ["appearance", "Appearance", "appearance"],
+  ["about", "About", "about"],
 ];
+
+function PageView({ page, go }: { page: Page; go: (p: Page) => void }) {
+  switch (page) {
+    case "movement":
+      return <Movement />;
+    case "behaviour":
+      return <Behaviour />;
+    case "schedules":
+      return <Schedules />;
+    case "blackouts":
+      return <Blackouts />;
+    case "appearance":
+      return <Appearance />;
+    case "about":
+      return <About />;
+    default:
+      return <Home go={go} />;
+  }
+}
 
 export default function App() {
   const [page, setPage] = useState<Page>("home");
@@ -38,19 +59,7 @@ export default function App() {
         ))}
       </nav>
       <main className="content">
-        {page === "movement" ? (
-          <Movement />
-        ) : page === "behaviour" ? (
-          <Behaviour />
-        ) : page === "schedules" ? (
-          <Schedules />
-        ) : page === "blackouts" ? (
-          <Blackouts />
-        ) : page === "advanced" ? (
-          <Advanced />
-        ) : (
-          <Home go={setPage} />
-        )}
+        <PageView page={page} go={setPage} />
       </main>
     </div>
   );

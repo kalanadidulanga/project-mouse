@@ -5,7 +5,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { RunSettings } from "./types";
 import { SettingRow, Switch } from "./controls";
-import { UpdateSettings } from "./updates";
 
 export default function Behaviour() {
   const [run, setRun] = useState<RunSettings | null>(null);
@@ -133,7 +132,6 @@ export default function Behaviour() {
         <p className="note">Ctrl+Alt+K starts and stops it from anywhere.</p>
       </section>
 
-      <UpdateSettings />
     </>
   );
 }
