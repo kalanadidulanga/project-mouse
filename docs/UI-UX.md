@@ -93,11 +93,17 @@ no user ever saw it. The Home screen explains itself.
   - *Idle for m:ss*
 - **The status line** gains *Paused: on battery / screen locked / blackout until 13:30* and
   *Stops at 18:00*.
-- **Settings** sections: Movement (distance, speed, abort) · Pauses · Schedules · Blackouts ·
-  Window and notifications · Starting · Updates · About.
+- **The rail** becomes seven tabs, each with an icon and a label: Home · Movement · Behaviour ·
+  Schedules · Blackouts · Appearance · About. This replaces Home / Settings / Advanced. Kalana
+  found the single Settings page too long and Advanced incomprehensible. Move Mouse reads
+  clearly because each concern has its own tab.
+- **Each setting** is a short label plus at most one hint line. The longer explanation sits
+  behind a **?** button.
+- **Advanced is gone.** Its rule builder becomes *Keep awake while these apps run*
+  (Behaviour), profiles leave the UI, and the diagnostics move to About ▸ Troubleshooting in
+  plain words.
 - **The taskbar button** carries a green (running) or yellow (paused) dot while the window is
   open. It is a static overlay, not an animation, so §4 holds.
-- **Advanced** loses the timer, because Run for replaces it.
 
 **Unchanged:** §4 motion budget, §5 visual language (plain Windows, system light/dark, no
 mascot, no custom title bar) and §7 accessibility.

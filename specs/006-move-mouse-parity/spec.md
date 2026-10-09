@@ -106,7 +106,7 @@ A list of "these days, at this time, Start (or Stop)". Each entry fires at its m
   - New run settings get their defaults.
   - `schedules` and `blackouts` start empty.
   - The Advanced timer rule (`id: "timer"`) is removed from every profile.
-- **FR-020 Remove the Advanced timer.** *Keep awake for a while* is removed from Advanced, because Run for replaces it.
+- **FR-020 Remove the Advanced timer.** *Keep awake for a while* is removed, because Run for replaces it.
 - **FR-021 Make Invisible explain itself.**
   - The label reads *Invisible (resets idle time, the cursor stays put)*.
   - **Test** with Invisible shows *Sent an invisible move* for about 2 s.
@@ -116,6 +116,36 @@ A list of "these days, at this time, Start (or Stop)". Each entry fires at its m
   - The action list itself, with click, scroll, keystroke, command and script.
   - Cron "advanced schedules".
   - Volume, hiding, disguise and screen-burn options (PRODUCT §5, constitution III).
+
+### Layout: tabs, not a long Settings page (Kalana, 2026-10-09)
+
+Kalana tested the M7 UI. Their verdict: Settings is one long scroll; Advanced is incomprehensible; Move Mouse is clear because every concern has its own tab. They asked for more tabs and a UX anyone can use, and chose to split up Advanced and simplify it.
+
+- **FR-024 Seven tabs.** The rail has seven tabs, each with a small inline-SVG icon and a label:
+
+  | Tab | Contents |
+  |---|---|
+  | **Home** | Status line, Start/Stop, **Run for**, a one-line summary (*Small square after 60 s · Edit* → Movement), **Test**, *Idle for m:ss* |
+  | **Movement** | What to send (mouse or key), direction, distance, speed, abort if I move, interval |
+  | **Behaviour** | Move the mouse, keep the screen on, the pauses (battery, locked, presenting), keep awake while these apps run, start when the app opens, start with Windows, the hotkey |
+  | **Schedules** | The list editor |
+  | **Blackouts** | The list editor |
+  | **Appearance** | Always on top, taskbar dot, notifications |
+  | **About** | Version and updates; idle time; Import from Move Mouse; **Troubleshooting**, collapsed by default |
+
+  The window stays 760×540, and the active tab is marked by more than colour.
+- **FR-025 Short rows, detail on request.** Each setting has a short label and at most one short hint line. The longer explanation sits behind a **?** button, as in Move Mouse. The button toggles an inline note, carries `aria-expanded`, and works from the keyboard. The paragraph-length notes in M7 move behind these buttons.
+- **FR-026 Keep awake while these apps run.** This replaces the rule builder with a plain list of executable names. Add one by typing it or by picking from the running apps (a new `list_running_apps` IPC from the sampler). The list is stored as one rule in the active profile: id `apps`, `ProcessRunning(list)`, KeepRunning, enabled while non-empty. It holds power even while Stopped. Home then reads *Stopped, but msbuild.exe is keeping the PC awake*, naming the first running match.
+- **FR-027 Pause while presenting** is off by default. It covers presentation mode, a full-screen app and a full-screen game, using the `NotifState` values `Presentation`, `Busy` and `Game`. It pauses moves only. Pause priority becomes battery, then locked, then presenting, then blackout.
+- **FR-028 The profiles UI is removed.** The engine keeps the active profile. The tray's Profile submenu still appears only when more than one profile exists.
+- **FR-029 About ▸ Troubleshooting**, rewritten in plain words:
+  - *Why is my PC awake?*
+  - *What Windows is being asked for* (sleep, display, lock and moves, each allowed or blocked)
+  - the two idle clocks and memory
+  - recent activity
+  - *Rules from an earlier version*: any rule other than `apps`, each with on/off and delete, so that nothing keeps the PC awake invisibly. The section is hidden when there are none.
+- **FR-030 About ▸ Import from Move Mouse.** One button that finds `Settings.xml` by itself, with an optional path field. The report shows below it.
+- **FR-031 Config v4 folds old rules into the list.** Any enabled rule whose only condition is `ProcessRunning` merges into the `apps` rule. Every other rule is kept as it is (constitution VI), and FR-029 lists it.
 
 ## Success Criteria
 
@@ -140,6 +170,8 @@ A list of "these days, at this time, Start (or Stop)". Each entry fires at its m
   - unplugging pauses on battery
   - the taskbar dot changes colour
 - **SC-009:** With the notification plugin, the tray-only working set stays within the 8 MB budget.
+- **SC-010:** Every setting is reachable within two clicks of Home. No settings page needs more than a little scrolling at 760×540. Every **?** button opens and closes with the keyboard.
+- **SC-011:** The v3→v4 migration turns a process-only rule into the `apps` list and keeps every other rule (unit test).
 
 ## Assumptions
 
