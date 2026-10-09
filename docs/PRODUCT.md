@@ -4,6 +4,34 @@
 
 ---
 
+## 0. Direction change — 2026-10-09
+
+The owner used the shipped app, v0.2.1, and could not understand it. A normal launch showed
+no window. The default mechanism, (A), does nothing anyone can see. The feature they actually
+needed sat behind a switch in Settings. They kept running Move Mouse, for one reason: to stop
+Teams/Slack showing them as Away. That is a presence timer, so only mechanism (B) can reset it
+(§2).
+
+So the **primary surface is now one Start/Stop button that does both**: it moves the mouse a
+few pixels after N seconds with no input, and it holds a power request so the machine stays
+awake. That is what Move Mouse does, minus Move Mouse's missing power API. The rest of this
+document stays as the record of why the engine is built the way it is. All of it still holds:
+
+- **(A) stays.** Every Start holds a power request, so "it ran but the PC slept" cannot happen
+  here. Power-only is one switch away (*Move the mouse* off), and the rules engine is unchanged
+  under **Advanced**.
+- **(B) is still opt-in.** Nothing is synthesized until the user presses Start, and the button
+  is accompanied by one honest paragraph on the same screen (constitution I, amended).
+- **§5 still binds.** No "undetectable", no "human-like", no anti-detection framing. The UI says
+  plainly that monitoring software can detect simulated input.
+- **§8 vocabulary, amended:** the UI may say that moving the mouse resets the idle timers that
+  the screen lock and chat apps watch. It names them as a fact about the mechanism. It never
+  promises a status colour.
+
+Spec: `specs/005-start-stop/spec.md`.
+
+---
+
 ## 1. The mistake we were making
 
 Early design here was built around one sentence: *"keep Microsoft Teams showing Available."*

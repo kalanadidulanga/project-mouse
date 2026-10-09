@@ -11,8 +11,11 @@ per principle.
 
 The product is the distinction between **power inhibition** (mechanism A: `PowerCreateRequest`/
 `PowerSetRequest`, sanctioned, ~zero policy risk) and **input synthesis** (mechanism B:
-`SendInput`, high risk). The power engine is **on by default**; the input engine is **off by
-default, opt-in, enabled only after one honest explanation**. The two are architecturally
+`SendInput`, high risk). Nothing runs until the user presses **Start**. Start is the explicit
+opt-in to both engines: it holds a power request and, unless *Move the mouse* is off, enables
+the input engine. The input engine is **never enabled before Start**, and Start sits next to one
+honest explanation on the same screen. Turning *Move the mouse* off gives a power-only Start.
+(Amended 2026-10-09, `docs/PRODUCT.md §0`.) The two are architecturally
 separate all the way down: the power engine holds a *state* (reconciled per tick, idempotent,
 released on exit); the input engine fires *events* (dispatched from rule firings). Modelling
 both as "actions" is forbidden. There is exactly one place that gates every input event on the
@@ -88,4 +91,4 @@ This constitution supersedes convenience. Any deviation must be justified agains
 plan's Complexity Tracking, or the plan is wrong. Complexity that is not demanded by a documented
 requirement is removed (YAGNI). Amendments follow the docs: change the docs first, then this file.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-22 | **Last Amended**: 2026-08-22
+**Version**: 1.1.0 | **Ratified**: 2026-08-22 | **Last Amended**: 2026-10-09

@@ -30,7 +30,69 @@ into again with a nicer font.
 
 ---
 
+## 0.5 Amendment — 2026-10-09: the window comes first
+
+§0's diagnosis of the radial launcher still stands. §1 drew the wrong conclusion from it: it
+put the window last. In practice a user who sees no window concludes that nothing happened, and
+that is what the owner concluded about v0.2.1 (see [PRODUCT §0](PRODUCT.md#0-direction-change--2026-10-09)).
+
+**What changes:**
+
+- **The window opens at launch.** The only exception is autostart (`--minimized`), which starts
+  in the tray. Launching the exe again while it runs brings the window back.
+- **X still destroys the window** (the memory discipline holds), and the app keeps running in
+  the tray. Home says so in one line, permanently.
+- **The tray** shows two states. The icon is in colour while running and grey while stopped.
+  The menu is Start|Stop · Open · Start with Windows · Check for updates… · Quit. The three-mode
+  menu in §1 Tier 2 is retired. The modes survive as *Keep the screen on* (Settings) and as
+  rules (Advanced).
+- **The window** has three rail items: **Home**, **Settings**, **Advanced**. It replaces the
+  §2 layout.
+
+```
+┌──────────────┬──────────────────────────────────────────────┐
+│ project-mouse│  ● Running                                   │
+│              │    Next move in 0:42                         │
+│ ▸ Home       │    PC won't sleep · screen stays on          │
+│   Settings   │                                              │
+│   Advanced   │  [            ■  Stop             ]          │
+│              │                                              │
+│              │  Move the mouse after  [ 200 ] seconds       │
+│              │                        with no input         │
+│              │  Movement   [ Small square      ▾]  [Test]   │
+│              │                                              │
+│              │  ⓘ one honest paragraph: what moves, why,    │
+│              │    and that monitoring software can detect   │
+│              │    simulated input                           │
+│              │                                              │
+│              │  Closing this window keeps it running in the │
+│              │  system tray, next to the clock.             │
+└──────────────┴──────────────────────────────────────────────┘
+```
+
+The status line is always a plain sentence about what is true right now: *Stopped* ·
+*Running, next move in m:ss* · *Running, but Windows blocked the last move* (with the fix) ·
+*Running, keeping the PC awake* (with mouse moves off) · *Stopped, but a rule is still keeping
+the PC awake*. The countdown is text, updated once a second, with no ring. §4 holds unchanged.
+
+**Settings:** Move the mouse · Keep the screen on · Distance · What to send · Vary · Start
+automatically when the app opens · Start with Windows · Updates · About.
+**Advanced:** profiles, rules, the timer, "Why is my PC awake?", the effect readout, idle clocks,
+memory, activity, and the Move Mouse import. These are the old Status/Rules/Activity/Settings
+panels, unchanged.
+
+**§8 first run is retired.** Its three answers were all power-only, and the launch bug meant
+no user ever saw it. The Home screen explains itself.
+
+**Unchanged:** §4 motion budget, §5 visual language (plain Windows, system light/dark, no
+mascot, no custom title bar) and §7 accessibility.
+
+---
+
 ## 1. Interaction model — three tiers
+
+> ⚠️ Superseded in part by §0.5 (2026-10-09): the window now opens at launch, and the tray menu
+> is Start|Stop.
 
 Almost all of Move Mouse's problems come from having exactly one surface for everything. Split
 it by frequency:
@@ -115,6 +177,8 @@ Created on demand, destroyed on close. Small, fixed size, not resizable, not max
 ---
 
 ## 2. Settings window layout
+
+> ⚠️ Superseded by §0.5 (2026-10-09): the rail is Home / Settings / Advanced.
 
 **640 × 480, fixed.** Not resizable. A settings window that can be dragged to 1920px wide is a
 window whose layout you now have to defend at every width, for no benefit — nobody wants a
@@ -294,6 +358,8 @@ Cheap to do now, expensive to retrofit, and this app has a real accessibility au
 ---
 
 ## 8. First run
+
+> ⚠️ Retired by §0.5 (2026-10-09). Kept as a record.
 
 The most important screen in the app, and the one most projects skip.
 

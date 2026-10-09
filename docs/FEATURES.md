@@ -253,7 +253,16 @@ and is the only way to defeat a session or presence timer.
 
 No apology, no warning triangle theatre — one honest paragraph, once.
 
+> **Amended 2026-10-09 ([PRODUCT §0](PRODUCT.md#0-direction-change--2026-10-09)).** Pressing
+> **Start** is the opt-in, and the honest paragraph sits next to the button on Home. Nothing is
+> synthesized before Start. The timing is now "after N seconds with no input". Each trigger
+> traces a whole closed path (C2). The default motion for new configs is **Small square**,
+> which is visible. The owner needs to *see* that it works, and their Move Mouse configuration
+> was a visible 10 px square. Virtual (C1) stays available as **Invisible**.
+
 ## C1. Virtual jiggle (default when input is enabled)
+
+> Amended 2026-10-09: no longer the default. Offered as **Invisible**; see the Part C note above.
 
 **★ Flagship.**
 
@@ -286,6 +295,12 @@ session* and recommends a click instead.
 | Return to origin | capture at *sequence* start, restore at end |
 | Absolute position | to a chosen point on a chosen monitor |
 | Path | line, square, or curve between two points |
+
+**One trigger, one whole path.** Each trigger traces the complete closed shape in small steps
+(≤ ~10 ms apart, ≤ ~600 ms total) and ends where it started. Spreading the legs of a square
+across four intervals, as v0.2.x did, leaves the cursor displaced between triggers and makes
+each move a single jump nobody notices. The self-injection filter (C6) and the blocked check
+(C7) treat the whole path as ours.
 
 ⚠️ **Relative movement passes through pointer acceleration.** `dx: 10` does not move exactly
 10 pixels; it goes through the system pointer-speed and Enhanced Pointer Precision curve. For
@@ -400,6 +415,9 @@ tool in this category. A tooltip answers it for free.
 # Part D — The application
 
 ## D1. Tray-first
+
+> **Amended 2026-10-09:** the window opens at launch and is the primary surface. The tray has
+> two states (running / stopped) and a Start|Stop menu. See [UI-UX §0.5](UI-UX.md#05-amendment--2026-10-09-the-window-comes-first).
 
 Tray icon with four visually distinct states — Active / Paused / Auto-paused / Blocked —
 distinguishable at 16×16 **in greyscale**. Native context menu carries mode switching, pause,
