@@ -11,17 +11,6 @@ pub fn upsert(list: &mut Vec<Profile>, profile: Profile) {
     }
 }
 
-/// Remove the profile with `id`. Refuses to remove the last one, the engine must always hold a
-/// profile, and reports whether it removed anything.
-pub fn delete(list: &mut Vec<Profile>, id: &str) -> bool {
-    if list.len() <= 1 {
-        return false;
-    }
-    let before = list.len();
-    list.retain(|p| p.id != id);
-    list.len() < before
-}
-
 /// The profile with `id`, if present.
 pub fn find<'a>(list: &'a [Profile], id: &str) -> Option<&'a Profile> {
     list.iter().find(|p| p.id == id)
@@ -67,32 +56,6 @@ mod tests {
         upsert(&mut list, profile("new", 0));
         assert_eq!(list.len(), 2);
         assert_eq!(list[1].id, "new");
-    }
-
-    #[test]
-    fn delete_refuses_the_last_profile() {
-        let mut list = vec![profile("only", 1)];
-        assert!(!delete(&mut list, "only"));
-        assert_eq!(
-            list.len(),
-            1,
-            "the engine must always have a profile to hold"
-        );
-    }
-
-    #[test]
-    fn delete_removes_one_of_several() {
-        let mut list = vec![profile("a", 0), profile("b", 0)];
-        assert!(delete(&mut list, "a"));
-        assert_eq!(list.len(), 1);
-        assert_eq!(list[0].id, "b");
-    }
-
-    #[test]
-    fn delete_reports_false_for_an_unknown_id() {
-        let mut list = vec![profile("a", 0), profile("b", 0)];
-        assert!(!delete(&mut list, "nope"));
-        assert_eq!(list.len(), 2);
     }
 
     #[test]

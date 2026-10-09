@@ -288,9 +288,27 @@ pub(crate) fn set_autostart(app: &tauri::AppHandle, on: bool) -> Result<bool, St
     let mgr = app.autolaunch();
     let res = if on { mgr.enable() } else { mgr.disable() };
     tray::sync(app);
+    if app.get_webview_window("main").is_some() {
+        let _ = app.emit("state:changed", ());
+    }
     res.map_err(|e| e.to_string())?;
     tracing::info!(enabled = on, "autostart set");
     Ok(mgr.is_enabled().unwrap_or(on))
+}
+
+/// Replace "keep awake while these apps run" (spec 006 FR-026), take effect at once, and save.
+pub(crate) fn set_apps(app: &tauri::AppHandle, names: Vec<String>) -> Vec<String> {
+    let list = {
+        let engine = app.state::<SharedEngine>();
+        let mut e = engine.lock().unwrap();
+        let mut profile = e.profile().clone();
+        let list = core::apps::set_apps(&mut profile, names);
+        e.set_profile(profile);
+        list
+    };
+    persist_current(app);
+    after_change(app);
+    list
 }
 
 /// Whether it is running and, if so, paused: what the taskbar dot shows.
@@ -610,16 +628,14 @@ pub fn run() {
             ipc::get_diagnostics,
             ipc::get_logs,
             ipc::get_rules,
-            ipc::upsert_rule,
             ipc::delete_rule,
             ipc::set_rule_enabled,
             ipc::get_input_settings,
             ipc::set_input_settings,
             ipc::why_awake,
-            ipc::list_profiles,
-            ipc::set_profile,
-            ipc::create_profile,
-            ipc::delete_profile,
+            ipc::get_apps,
+            ipc::set_apps,
+            ipc::list_running_apps,
             ipc::get_update_status,
             ipc::set_auto_update,
             ipc::check_for_update,

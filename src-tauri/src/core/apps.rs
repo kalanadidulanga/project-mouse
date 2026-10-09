@@ -1,5 +1,4 @@
 //! "Keep awake while these apps run" (spec 006 FR-026): the plain-words face of one process rule.
-#![allow(dead_code)] // wired in Tasks 6 and 9
 
 use crate::core::modes::WakeMode;
 use crate::core::rule::{Condition, Profile, Rule};

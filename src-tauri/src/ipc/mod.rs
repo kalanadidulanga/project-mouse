@@ -13,8 +13,7 @@ use crate::core::awake::{self, AwakeReport};
 use crate::core::engine::Engine;
 use crate::core::input_engine::{InputEngine, InputSettings};
 use crate::core::modes::WakeMode;
-use crate::core::profiles;
-use crate::core::rule::{Profile, Rule};
+use crate::core::rule::Profile;
 use crate::core::running::{self, RunSettings, StatusKind};
 use crate::platform::PowerInspector;
 use crate::sampler::Sampler;
@@ -22,7 +21,6 @@ use crate::{logging, platform};
 
 type SharedEngine = Arc<Mutex<Engine>>;
 type SharedInput = Arc<Mutex<InputEngine>>;
-type SharedProfiles = Arc<Mutex<Vec<Profile>>>;
 type SharedRun = Arc<Mutex<RunSettings>>;
 type SharedTimetable = Arc<Mutex<Timetable>>;
 type SharedAppearance = Arc<Mutex<Appearance>>;
@@ -96,6 +94,8 @@ pub struct Status {
     pub stops_at: Option<u64>,
     /// Seconds since the last input of any kind (spec 006 FR-018).
     pub idle_secs: u32,
+    /// While stopped: the first listed app that is keeping the PC awake (FR-026).
+    pub holding_app: Option<String>,
 }
 
 #[tauri::command]
@@ -109,9 +109,13 @@ pub fn get_status(
 ) -> Status {
     let settings = *run.lock().unwrap();
     let snap = sampler.last();
-    let (on, effective) = {
+    let (on, effective, holding_app) = {
         let e = engine.lock().unwrap();
-        (running::is_running(&e), e.mode())
+        let on = running::is_running(&e);
+        let holding = (!on && e.mode() != WakeMode::Off)
+            .then(|| crate::core::apps::first_running(e.profile(), &snap.running_processes))
+            .flatten();
+        (on, e.mode(), holding)
     };
     let pause = if on {
         autopilot::pause_reason(&settings, &timetable.lock().unwrap().blackouts, &snap)
@@ -139,6 +143,7 @@ pub fn get_status(
         pause,
         stops_at,
         idle_secs: idle_ms / 1000,
+        holding_app,
     }
 }
 
@@ -215,103 +220,6 @@ pub fn why_awake(
 ) -> AwakeReport {
     let ours = engine.lock().unwrap().mode();
     awake::report(inspector.execution_state(), ours)
-}
-
-#[derive(Serialize)]
-pub struct ProfileSummary {
-    pub id: String,
-    pub name: String,
-    pub active: bool,
-    pub rule_count: usize,
-}
-
-#[tauri::command]
-pub fn list_profiles(
-    engine: State<'_, SharedEngine>,
-    stored: State<'_, SharedProfiles>,
-) -> Vec<ProfileSummary> {
-    let live = engine.lock().unwrap().profile().clone();
-    let mut list = stored.lock().unwrap().clone();
-    // The engine's copy is authoritative for the active profile, it may hold unsaved edits.
-    profiles::upsert(&mut list, live.clone());
-    list.into_iter()
-        .map(|p| ProfileSummary {
-            active: p.id == live.id,
-            rule_count: p.rules.len(),
-            id: p.id,
-            name: p.name,
-        })
-        .collect()
-}
-
-#[tauri::command]
-pub fn set_profile(
-    app: AppHandle,
-    engine: State<'_, SharedEngine>,
-    stored: State<'_, SharedProfiles>,
-    id: String,
-) {
-    {
-        let mut e = engine.lock().unwrap();
-        let mut list = stored.lock().unwrap();
-        // Write the live profile back BEFORE loading the other one, or unsaved rule edits die
-        // with the switch.
-        profiles::upsert(&mut list, e.profile().clone());
-        match profiles::find(&list, &id) {
-            Some(p) => e.set_profile(p.clone()),
-            None => {
-                tracing::warn!(%id, "set_profile: no such profile");
-                return;
-            }
-        }
-    }
-    crate::persist_current(&app);
-    crate::tray::sync(&app);
-}
-
-#[tauri::command]
-pub fn create_profile(app: AppHandle, stored: State<'_, SharedProfiles>, name: String) -> String {
-    let id = format!(
-        "p{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis())
-            .unwrap_or(0)
-    );
-    let name = if name.trim().is_empty() {
-        "New profile".to_string()
-    } else {
-        name
-    };
-    profiles::upsert(&mut stored.lock().unwrap(), Profile::new(&id, name));
-    crate::persist_current(&app);
-    crate::tray::sync(&app);
-    id
-}
-
-#[tauri::command]
-pub fn delete_profile(
-    app: AppHandle,
-    engine: State<'_, SharedEngine>,
-    stored: State<'_, SharedProfiles>,
-    id: String,
-) -> Result<(), String> {
-    {
-        let mut list = stored.lock().unwrap();
-        if !profiles::delete(&mut list, &id) {
-            return Err("that is the last profile; the app must always hold one".into());
-        }
-        // Deleting the active one means loading whatever is left.
-        let mut e = engine.lock().unwrap();
-        if e.profile().id == id {
-            if let Some(p) = list.first().cloned() {
-                e.set_profile(p);
-            }
-        }
-    }
-    crate::persist_current(&app);
-    crate::tray::sync(&app);
-    Ok(())
 }
 
 #[tauri::command]
@@ -414,12 +322,6 @@ pub fn get_rules(engine: State<'_, SharedEngine>) -> Profile {
 }
 
 #[tauri::command]
-pub fn upsert_rule(app: AppHandle, engine: State<'_, SharedEngine>, rule: Rule) {
-    engine.lock().unwrap().upsert_rule(rule);
-    crate::persist_current(&app);
-}
-
-#[tauri::command]
 pub fn delete_rule(app: AppHandle, engine: State<'_, SharedEngine>, id: String) {
     engine.lock().unwrap().delete_rule(&id);
     crate::persist_current(&app);
@@ -434,4 +336,28 @@ pub fn set_rule_enabled(
 ) {
     engine.lock().unwrap().set_rule_enabled(&id, enabled);
     crate::persist_current(&app);
+}
+
+#[tauri::command]
+pub fn get_apps(engine: State<'_, SharedEngine>) -> Vec<String> {
+    crate::core::apps::apps(engine.lock().unwrap().profile())
+}
+
+#[tauri::command]
+pub fn set_apps(app: AppHandle, names: Vec<String>) -> Vec<String> {
+    crate::set_apps(&app, names)
+}
+
+/// Running executables, for the "add an app" suggestions: sorted, one entry per name.
+#[tauri::command]
+pub fn list_running_apps(sampler: State<'_, Arc<Sampler>>) -> Vec<String> {
+    let mut names: Vec<String> = sampler
+        .last()
+        .running_processes
+        .into_iter()
+        .filter(|n| n.to_ascii_lowercase().ends_with(".exe"))
+        .collect();
+    names.sort_by_key(|n| n.to_ascii_lowercase());
+    names.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+    names
 }
