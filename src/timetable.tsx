@@ -37,7 +37,7 @@ export function Schedules() {
       <h1>Schedules</h1>
       <p className="note">
         Start or stop at set times. If you start or stop it yourself in between, that stands until the next scheduled
-        time. project-mouse has to be running in the tray, so turn on Start with Windows (Behaviour).
+        time. If project-mouse opens after today's start time, it starts then. It has to be running in the tray, so turn on Start with Windows (Behaviour).
       </p>
       {t.schedules.length === 0 && <p className="empty">No schedules yet.</p>}
       {t.schedules.map((s, i) => (

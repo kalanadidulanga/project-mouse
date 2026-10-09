@@ -170,8 +170,8 @@ pub fn deadline_for(run_for: RunFor, epoch: u64, minute_now: u16) -> Option<u64>
 /// Schedule edges and the Run-for deadline, tick by tick.
 #[derive(Debug, Default)]
 pub struct Autopilot {
-    /// The previous tick's local (weekday, minute). `None` before the first tick, so launching
-    /// never fires an edge.
+    /// The previous tick's local (weekday, minute). `None` before the first tick, which looks
+    /// back over today for a Start that is already due (a launch never Stops).
     last: Option<(u8, u16)>,
     deadline: Option<u64>,
 }
@@ -196,18 +196,28 @@ impl Autopilot {
     ) -> Decision {
         let now = (snap.weekday, snap.minutes);
         let mut command = None;
+        let mut running_now = running;
+        // The deadline goes first, so a schedule edge in the same tick is judged against the
+        // state it leaves behind: a Start still fires, and a Stop is not done twice.
         if running && self.deadline.is_some_and(|d| snap.epoch_secs >= d) {
             command = Some(Command::Stop(Cause::RunFor));
-        } else if let Some(prev) = self.last {
-            command = match (crossed(&t.schedules, prev, now), running) {
-                (Some(ScheduleAction::Start), false) => Some(Command::Start(Cause::Schedule)),
-                (Some(ScheduleAction::Stop), true) => Some(Command::Stop(Cause::Schedule)),
-                _ => None,
-            };
+            running_now = false;
+        }
+        let first = self.last.is_none();
+        match (crossed(&t.schedules, self.last, now), running_now) {
+            (Some(ScheduleAction::Start), false) => command = Some(Command::Start(Cause::Schedule)),
+            // A launch never stops anything: only a Start that was due earlier today applies.
+            (Some(ScheduleAction::Stop), true) if !first => {
+                command = Some(Command::Stop(Cause::Schedule))
+            }
+            _ => {}
         }
         self.last = Some(now);
         let running_after = match command {
-            Some(Command::Start(_)) => true,
+            Some(Command::Start(_)) => {
+                self.deadline = None;
+                true
+            }
             Some(Command::Stop(_)) => {
                 self.deadline = None;
                 false
@@ -224,19 +234,21 @@ impl Autopilot {
 }
 
 /// The schedule edge crossed since the previous tick, today only. The latest time wins, and
-/// Stop wins a tie (Review Focus 1). A clock going backwards within the day fires nothing.
+/// Stop wins a tie (Review Focus 1). A clock going backwards within the day fires nothing. With
+/// no previous tick (the first), it looks back to 00:00 today.
 fn crossed(
     schedules: &[Schedule],
-    (pd, pm): (u8, u16),
+    prev: Option<(u8, u16)>,
     (nd, nm): (u8, u16),
 ) -> Option<ScheduleAction> {
-    let lower: i32 = if pd == nd {
-        if nm < pm {
-            return None;
+    let lower: i32 = match prev {
+        Some((pd, pm)) if pd == nd => {
+            if nm < pm {
+                return None;
+            }
+            pm as i32
         }
-        pm as i32
-    } else {
-        -1
+        _ => -1,
     };
     schedules
         .iter()
@@ -281,10 +293,60 @@ mod tests {
     use ScheduleAction::{Start, Stop};
 
     #[test]
-    fn the_first_tick_fires_nothing() {
+    fn the_first_tick_never_stops_and_does_nothing_if_already_running() {
         let mut a = Autopilot::default();
-        let d = a.tick(&run(), &table(vec![at(540, Start)]), &snap(0, 540), false);
-        assert_eq!(d.command, None);
+        let t = table(vec![at(540, Stop)]);
+        assert_eq!(a.tick(&run(), &t, &snap(0, 700), true).command, None);
+        let mut a = Autopilot::default();
+        let t = table(vec![at(540, Start)]);
+        assert_eq!(a.tick(&run(), &t, &snap(0, 700), true).command, None);
+    }
+
+    /// A launch at 09:05 with a 09:00 Start starts; a launch at 19:00 after an 18:00 Stop does not.
+    #[test]
+    fn a_launch_after_todays_start_time_starts() {
+        let mut a = Autopilot::default();
+        let t = table(vec![at(540, Start)]);
+        assert_eq!(
+            a.tick(&run(), &t, &snap(0, 545), false).command,
+            Some(Command::Start(Cause::Schedule))
+        );
+        let mut a = Autopilot::default();
+        let t = table(vec![at(540, Start), at(1080, Stop)]);
+        assert_eq!(a.tick(&run(), &t, &snap(0, 1140), false).command, None);
+        let mut a = Autopilot::default();
+        assert_eq!(
+            a.tick(&run(), &t, &snap(0, 600), false).command,
+            Some(Command::Start(Cause::Schedule))
+        );
+        let mut a = Autopilot::default();
+        assert_eq!(
+            a.tick(&run(), &table(vec![at(540, Start)]), &snap(0, 500), false)
+                .command,
+            None,
+            "not yet due"
+        );
+    }
+
+    #[test]
+    fn a_deadline_stop_and_a_crossed_start_in_one_tick_still_starts() {
+        let t = table(vec![at(540, Start)]);
+        let mut a = Autopilot::default();
+        a.tick(&run(), &t, &snap(0, 539), true);
+        a.set_deadline(Some(1_000_000));
+        let d = a.tick(&run(), &t, &snap(0, 540), true);
+        assert_eq!(d.command, Some(Command::Start(Cause::Schedule)));
+        assert_eq!(a.deadline(), None);
+    }
+
+    #[test]
+    fn a_deadline_stop_and_a_crossed_stop_are_one_stop() {
+        let t = table(vec![at(540, Stop)]);
+        let mut a = Autopilot::default();
+        a.tick(&run(), &t, &snap(0, 539), true);
+        a.set_deadline(Some(1_000_000));
+        let d = a.tick(&run(), &t, &snap(0, 540), true);
+        assert_eq!(d.command, Some(Command::Stop(Cause::RunFor)));
     }
 
     #[test]
