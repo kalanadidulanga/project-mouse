@@ -1,5 +1,6 @@
-//! project-mouse — wake engine. Tray-only, power inhibition by default. M2 adds the rule engine:
-//! a scheduler thread ticks ~1 s, samples state, evaluates the active profile, and reconciles.
+//! project-mouse — Start/Stop over a wake engine and an input engine (spec 005). A scheduler thread
+//! ticks ~1 s: it samples state, evaluates the active profile, reconciles power and runs the input
+//! engine.
 
 mod config;
 mod core;
@@ -8,14 +9,14 @@ mod logging;
 mod platform;
 mod power;
 mod sampler;
+mod tray;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{Emitter, Manager, Wry};
+use tauri::{Emitter, Manager};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_updater::UpdaterExt;
 
@@ -80,14 +81,6 @@ fn log_dir() -> PathBuf {
         .unwrap_or_else(std::env::temp_dir)
 }
 
-fn tooltip_for(mode: WakeMode) -> &'static str {
-    match mode {
-        WakeMode::Off => "project-mouse — not holding anything",
-        WakeMode::KeepRunning => "project-mouse — keeping awake (screen may sleep)",
-        WakeMode::KeepPresenting => "project-mouse — keeping the display on",
-    }
-}
-
 /// `--while-process msbuild.exe [--while-process X ...]` → a profile with one process-bound rule
 /// (SC-001). This is how M2 is exercised before the rule-builder UI (M3).
 fn profile_from_args() -> Option<Profile> {
@@ -134,13 +127,27 @@ fn cli_keep_mode() -> Option<WakeMode> {
     None
 }
 
-/// Apply flags a *second* invocation forwarded to the running instance (single-instance), so
-/// `project-mouse --keep presenting` / `--release` / `--show` controls the running app (D10).
+/// Spec 005 FR-001: a launch shows the window, except autostart, which passes `--minimized` and
+/// belongs in the tray.
+fn opens_window_at_launch(args: &[String]) -> bool {
+    !args.iter().any(|a| a == "--minimized")
+}
+
+/// A second launch carrying only a control flag (`--keep`, `--release`) is a script talking to
+/// us. Anything else is a person opening the app again, and they should see it.
+fn forwarded_opens_window(argv: &[String]) -> bool {
+    argv.iter().any(|a| a == "--show")
+        || !argv
+            .iter()
+            .any(|a| matches!(a.as_str(), "--keep" | "--release" | "--minimized"))
+}
+
+/// Apply what a *second* invocation forwarded to the running instance (single-instance): flags
+/// control it (D10), and a plain launch brings the window back (spec 005 FR-001).
 fn apply_forwarded(app: &tauri::AppHandle, argv: &[String]) {
     let mut it = argv.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
-            "--show" => open_window(app),
             "--release" => apply_mode(app, WakeMode::Off),
             "--keep" => {
                 if let Some(m) = it.next().and_then(|v| mode_from_cli(v)) {
@@ -150,12 +157,17 @@ fn apply_forwarded(app: &tauri::AppHandle, argv: &[String]) {
             _ => {}
         }
     }
+    if forwarded_opens_window(argv) {
+        open_window(app);
+    }
 }
 
 /// Create the settings window on demand (reusing the declared `create:false` config), or focus it
 /// if it already exists. Destroyed — not hidden — on close (ARCHITECTURE §3).
 fn open_window(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
         let _ = w.set_focus();
         return;
     }
@@ -221,7 +233,7 @@ pub(crate) fn set_run_settings(app: &tauri::AppHandle, settings: RunSettings) {
 pub(crate) fn set_autostart(app: &tauri::AppHandle, on: bool) -> Result<bool, String> {
     let mgr = app.autolaunch();
     let res = if on { mgr.enable() } else { mgr.disable() };
-    rebuild_tray_menu(app);
+    tray::sync(app);
     res.map_err(|e| e.to_string())?;
     tracing::info!(enabled = on, "autostart set");
     Ok(mgr.is_enabled().unwrap_or(on))
@@ -229,7 +241,7 @@ pub(crate) fn set_autostart(app: &tauri::AppHandle, on: bool) -> Result<bool, St
 
 /// Tell the tray and an open window that the state changed.
 fn after_change(app: &tauri::AppHandle) {
-    rebuild_tray_menu(app);
+    tray::sync(app);
     if app.get_webview_window("main").is_some() {
         let _ = app.emit("state:changed", ());
     }
@@ -281,63 +293,6 @@ fn toggle_autostart(app: &tauri::AppHandle) {
     }
 }
 
-/// The whole tray menu, built from current state. Rebuilt rather than mutated: a profile list and
-/// a checkmark that must both stay truthful are cheaper to regenerate than to patch in place.
-fn build_tray_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<Wry>> {
-    let item = |id: &str, txt: &str| MenuItem::with_id(app, id, txt, true, None::<&str>);
-    let autostart = CheckMenuItem::with_id(
-        app,
-        "autostart",
-        "Start with Windows",
-        true,
-        app.autolaunch().is_enabled().unwrap_or(false),
-        None::<&str>,
-    )?;
-
-    let active_id = app
-        .try_state::<SharedEngine>()
-        .map(|e| e.lock().unwrap().profile().id.clone())
-        .unwrap_or_default();
-    let stored: Vec<Profile> = app
-        .try_state::<SharedProfiles>()
-        .map(|p| p.lock().unwrap().clone())
-        .unwrap_or_default();
-    let entries: Vec<CheckMenuItem<Wry>> = stored
-        .iter()
-        .map(|p| {
-            CheckMenuItem::with_id(
-                app,
-                format!("profile:{}", p.id),
-                &p.name,
-                true,
-                p.id == active_id,
-                None::<&str>,
-            )
-        })
-        .collect::<tauri::Result<_>>()?;
-    let refs: Vec<&dyn tauri::menu::IsMenuItem<Wry>> = entries
-        .iter()
-        .map(|i| i as &dyn tauri::menu::IsMenuItem<Wry>)
-        .collect();
-    let profiles_menu = Submenu::with_items(app, "Profile", !refs.is_empty(), &refs)?;
-
-    Menu::with_items(
-        app,
-        &[
-            &item("off", "Off")?,
-            &item("keep_running", "Keep running")?,
-            &item("keep_presenting", "Keep presenting")?,
-            &PredefinedMenuItem::separator(app)?,
-            &profiles_menu,
-            &PredefinedMenuItem::separator(app)?,
-            &autostart,
-            &item("check_update", "Check for updates…")?,
-            &PredefinedMenuItem::separator(app)?,
-            &item("quit", "Quit")?,
-        ],
-    )
-}
-
 /// Load `id` into the engine, writing the live profile back into the collection first so
 /// unsaved rule edits survive the switch.
 pub(crate) fn switch_profile(app: &tauri::AppHandle, id: &str) {
@@ -360,39 +315,7 @@ pub(crate) fn switch_profile(app: &tauri::AppHandle, id: &str) {
         }
     }
     persist_current(app);
-    rebuild_tray_menu(app);
-}
-
-pub(crate) fn rebuild_tray_menu(app: &tauri::AppHandle) {
-    match (app.tray_by_id("main"), build_tray_menu(app)) {
-        (Some(tray), Ok(menu)) => {
-            if let Err(e) = tray.set_menu(Some(menu)) {
-                tracing::error!("tray menu update failed: {e}");
-            }
-        }
-        (_, Err(e)) => tracing::error!("tray menu build failed: {e}"),
-        _ => {}
-    }
-}
-
-/// Tooltip text: the mode, plus how long a running timer has left (002 T020).
-fn tooltip_text(mode: WakeMode, remaining: Option<u64>) -> String {
-    let base = match remaining {
-        Some(s) => format!("{} — {} left", tooltip_for(mode), fmt_remaining(s)),
-        None => tooltip_for(mode).to_string(),
-    };
-    match update_available() {
-        Some(v) => format!("{base}\nUpdate {v} available — tray → Check for updates"),
-        None => base,
-    }
-}
-
-fn fmt_remaining(secs: u64) -> String {
-    match secs {
-        0..=59 => format!("{secs}s"),
-        60..=3599 => format!("{}m", secs / 60),
-        _ => format!("{}h {}m", secs / 3600, (secs % 3600) / 60),
-    }
+    tray::sync(app);
 }
 
 fn release_all(app: &tauri::AppHandle) {
@@ -601,14 +524,24 @@ pub fn run() {
             }
         })
         .setup(move |app| {
-            let icon = app.default_window_icon().cloned().unwrap();
-            let restored = engine.lock().unwrap().manual();
-            let menu = build_tray_menu(app.handle())?;
+            let icons = tray::Icons::new(
+                app.default_window_icon()
+                    .cloned()
+                    .expect("bundled window icon")
+                    .to_owned(),
+            );
+            let running_now = is_running(app.handle());
+            let first = if running_now {
+                icons.on.clone()
+            } else {
+                icons.off.clone()
+            };
+            app.manage(icons);
             let _tray = TrayIconBuilder::with_id("main")
-                .icon(icon)
-                .tooltip(tooltip_for(restored))
-                .menu(&menu)
-                .show_menu_on_left_click(false) // left = open window, right = menu (UI-UX §1)
+                .icon(first)
+                .tooltip("project-mouse")
+                .menu(&tray::menu(app.handle(), running_now)?)
+                .show_menu_on_left_click(false) // left = open window, right = menu
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
@@ -620,9 +553,8 @@ pub fn run() {
                     }
                 })
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "off" => apply_mode(app, WakeMode::Off),
-                    "keep_running" => apply_mode(app, WakeMode::KeepRunning),
-                    "keep_presenting" => apply_mode(app, WakeMode::KeepPresenting),
+                    "toggle" => set_running(app, !is_running(app)),
+                    "open" => open_window(app),
                     "autostart" => toggle_autostart(app),
                     "check_update" => {
                         tauri::async_runtime::spawn(check_and_install(app.clone(), false));
@@ -642,6 +574,7 @@ pub fn run() {
             // Scheduler thread: owns nothing but a clone; ticks, evaluates, reconciles.
             let sched_engine = engine.clone();
             let sched_input = input_engine.clone();
+            let sched_run = run_state.clone();
             let sched_sampler = sampler.clone();
             let sched_app = app.handle().clone();
             std::thread::spawn(move || {
@@ -652,24 +585,25 @@ pub fn run() {
                     }
                     // Phase 1: reconcile the power engine against desired state.
                     let snap = sched_sampler.snapshot();
-                    let (mode, remaining) = {
+                    let (on, effective, remaining) = {
                         let mut e = sched_engine.lock().unwrap();
                         e.tick(&snap);
-                        (e.mode(), soonest_expiry_secs(e.profile(), &snap))
+                        (
+                            running::is_running(&e),
+                            e.mode(),
+                            soonest_expiry_secs(e.profile(), &snap),
+                        )
                     };
-                    // Phase 2: the input engine (off unless the user enabled it).
-                    let blocked = {
+                    let (blocked, next) = {
                         let mut ie = sched_input.lock().unwrap();
                         ie.tick(platform::last_input_tick(), platform::tick_now());
-                        ie.enabled() && ie.blocked
+                        (ie.enabled() && ie.blocked, ie.next_move_in_secs())
                     };
-                    // Recomputed every tick but pushed only when the *text* changes, so a
-                    // per-second countdown does not churn the tray once the minute has settled.
-                    let tip = if blocked {
-                        "project-mouse - input blocked (an elevated window has focus)".to_string()
-                    } else {
-                        tooltip_text(mode, remaining)
-                    };
+                    let move_mouse = sched_run.lock().unwrap().move_mouse;
+                    let kind = running::status_kind(on, move_mouse, blocked, effective);
+                    let tip = tray::tooltip(kind, next, remaining, update_available().as_deref());
+                    // Pushed only when the text changes. While running that is once a second,
+                    // which is also what keeps an open window's countdown live.
                     if tip != last_tip {
                         last_tip = tip.clone();
                         if let Some(tray) = sched_app.tray_by_id("main") {
@@ -685,7 +619,8 @@ pub fn run() {
             });
 
             tracing::info!("project-mouse started (tray + scheduler running)");
-            if std::env::args().any(|a| a == "--show") {
+            let args: Vec<String> = std::env::args().collect();
+            if opens_window_at_launch(&args) {
                 open_window(app.handle());
             }
             std::thread::spawn(|| {
@@ -723,4 +658,49 @@ pub fn run() {
             tauri::RunEvent::Exit => release_all(app),
             _ => {}
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(a: &[&str]) -> Vec<String> {
+        a.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn a_plain_launch_opens_the_window() {
+        assert!(opens_window_at_launch(&args(&["project-mouse.exe"])));
+    }
+
+    #[test]
+    fn autostart_stays_in_the_tray() {
+        assert!(!opens_window_at_launch(&args(&[
+            "project-mouse.exe",
+            "--minimized"
+        ])));
+    }
+
+    #[test]
+    fn launching_again_shows_the_window() {
+        assert!(forwarded_opens_window(&args(&["project-mouse.exe"])));
+    }
+
+    #[test]
+    fn a_control_flag_from_a_script_does_not() {
+        assert!(!forwarded_opens_window(&args(&[
+            "pm.exe", "--keep", "running"
+        ])));
+        assert!(!forwarded_opens_window(&args(&["pm.exe", "--release"])));
+        assert!(!forwarded_opens_window(&args(&["pm.exe", "--minimized"])));
+    }
+
+    #[test]
+    fn show_always_shows() {
+        assert!(forwarded_opens_window(&args(&[
+            "pm.exe",
+            "--release",
+            "--show"
+        ])));
+    }
 }

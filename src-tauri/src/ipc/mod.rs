@@ -208,7 +208,7 @@ pub fn set_profile(
         }
     }
     crate::persist_current(&app);
-    crate::rebuild_tray_menu(&app);
+    crate::tray::sync(&app);
 }
 
 #[tauri::command]
@@ -227,7 +227,7 @@ pub fn create_profile(app: AppHandle, stored: State<'_, SharedProfiles>, name: S
     };
     profiles::upsert(&mut stored.lock().unwrap(), Profile::new(&id, name));
     crate::persist_current(&app);
-    crate::rebuild_tray_menu(&app);
+    crate::tray::sync(&app);
     id
 }
 
@@ -252,7 +252,7 @@ pub fn delete_profile(
         }
     }
     crate::persist_current(&app);
-    crate::rebuild_tray_menu(&app);
+    crate::tray::sync(&app);
     Ok(())
 }
 
