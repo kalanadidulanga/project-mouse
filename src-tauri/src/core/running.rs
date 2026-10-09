@@ -19,6 +19,12 @@ pub struct RunSettings {
     pub keep_screen_on: bool,
     /// Start as soon as the app opens.
     pub start_on_launch: bool,
+    /// Pause moves and keep-awake while on battery, so the PC can sleep (spec 006 FR-008).
+    pub pause_on_battery: bool,
+    /// Pause moves while the screen is locked; keep-awake continues (FR-009).
+    pub pause_when_locked: bool,
+    /// Pause moves while presenting or a full-screen app or game is up; keep-awake continues (FR-027).
+    pub pause_when_presenting: bool,
 }
 
 impl Default for RunSettings {
@@ -27,6 +33,9 @@ impl Default for RunSettings {
             move_mouse: true,
             keep_screen_on: true,
             start_on_launch: false,
+            pause_on_battery: false,
+            pause_when_locked: true,
+            pause_when_presenting: false,
         }
     }
 }

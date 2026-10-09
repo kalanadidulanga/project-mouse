@@ -127,7 +127,8 @@ mod tests {
             RunSettings {
                 move_mouse: false,
                 keep_screen_on: false,
-                start_on_launch: true
+                start_on_launch: true,
+                ..Default::default()
             }
         );
     }

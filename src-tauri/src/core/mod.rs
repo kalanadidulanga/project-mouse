@@ -1,3 +1,4 @@
+pub mod autopilot;
 pub mod awake;
 pub mod engine;
 pub mod evaluator;
