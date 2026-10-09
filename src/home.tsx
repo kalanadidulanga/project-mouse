@@ -109,7 +109,7 @@ export default function Home() {
               <NumberField
                 label="Seconds with no input before a move"
                 value={input.interval_secs}
-                max={86_400}
+                max={3_600}
                 onCommit={(n) => save({ ...input, interval_secs: n })}
               />
               seconds with no input

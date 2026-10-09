@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 /** An on/off switch with the keyboard behaviour of a real one. */
 export function Switch({ on, onChange, label }: { on: boolean; onChange: (next: boolean) => void; label: string }) {
@@ -25,9 +25,11 @@ export function Switch({ on, onChange, label }: { on: boolean; onChange: (next: 
   );
 }
 
-/** A number box that commits on blur or Enter. Anything that is not a number puts back the value
- *  in effect, so an empty box never reaches Rust as `null`, and the value is held to 0..max so it
- *  cannot overflow the Rust type. Rust applies the real range (Review Focus 2). */
+/** A number box that commits on blur or Enter. The box shows `value` whenever it is not being
+ *  edited, so after a commit it shows what the parent holds: the clamped value Rust applied, or
+ *  the old one if the call failed. Anything that is not a number commits nothing, so an empty box
+ *  never reaches Rust as `null`, and the value is held to 0..max so it cannot overflow the Rust
+ *  type. Rust applies the real range (Review Focus 2). */
 export function NumberField({
   value,
   max,
@@ -39,24 +41,22 @@ export function NumberField({
   onCommit: (n: number) => void;
   label: string;
 }) {
-  const [text, setText] = useState(String(value));
-  useEffect(() => setText(String(value)), [value]);
+  const [text, setText] = useState<string | null>(null);
   const commit = () => {
-    const n = Math.round(Number(text));
-    if (text.trim() === "" || !Number.isFinite(n)) {
-      setText(String(value));
-      return;
-    }
+    const t = text;
+    setText(null);
+    if (t === null) return;
+    const n = Math.round(Number(t));
+    if (t.trim() === "" || !Number.isFinite(n)) return;
     const clamped = Math.min(Math.max(n, 0), max);
-    if (clamped === value) setText(String(value));
-    else onCommit(clamped);
+    if (clamped !== value) onCommit(clamped);
   };
   return (
     <input
       className="btn num"
       inputMode="numeric"
       aria-label={label}
-      value={text}
+      value={text ?? String(value)}
       onChange={(e) => setText(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => e.key === "Enter" && commit()}
