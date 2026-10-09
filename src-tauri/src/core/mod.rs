@@ -7,4 +7,5 @@ pub mod modes;
 pub mod motion;
 pub mod profiles;
 pub mod rule;
+pub mod running;
 pub mod snapshot;
