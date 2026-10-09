@@ -1,4 +1,5 @@
-# Release pipeline (UPDATES.md §5). Builds, signs the update artifacts, and drafts a GitHub release.
+# Release pipeline (UPDATES.md §5). Runs the CI gates first; only if they pass does it build, sign
+# the update artifacts and draft a GitHub release.
 # Requires these repo secrets before it can sign; see docs/SHIP.md:
 #   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD  (minisign update key)
 #   MANIFEST_TOKEN                                                  (cPanel latest.json publish)
@@ -9,15 +10,19 @@ on:
     tags: ["v*"]
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   release:
+    needs: ci
     permissions:
       contents: write
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
