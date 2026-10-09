@@ -263,6 +263,7 @@ pub fn import_move_mouse(
     let xml = std::fs::read_to_string(&path)
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     let imported = mm::import(&xml)?;
+    let moves = imported.input.is_some();
     if let Some(s) = imported.input {
         input.lock().unwrap().set_settings(s);
     }
@@ -271,6 +272,7 @@ pub fn import_move_mouse(
     t.blackouts.extend(imported.blackouts);
     crate::set_timetable(&app, t);
     let mut settings = *run.lock().unwrap();
+    settings.move_mouse |= moves; // an imported movement should run when Start is pressed
     settings.pause_on_battery = imported
         .pause_on_battery
         .unwrap_or(settings.pause_on_battery);

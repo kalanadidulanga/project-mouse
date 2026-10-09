@@ -31,8 +31,7 @@ you got was a tray icon (often hidden), and moving the mouse was a switch buried
   shows it straight away.
 - **The tray icon is grey while stopped**, the menu is Start/Stop, and the tooltip shows the
   countdown. Ctrl+Alt+K starts and stops it.
-- The old Status, Rules and Activity pages, and the rest of Settings, are under **About >
-  Troubleshooting**, unchanged. Off / Keep running / Keep presenting and Pause are gone, because Start/Stop does
+- The old Status, Rules and Activity pages are under **About > Troubleshooting**. Off / Keep running / Keep presenting and Pause are gone, because Start/Stop does
   their job. The first-run question is gone too.
 - **Import from Move Mouse** now brings your movement settings across, and finds
   `Settings.xml` by itself (including the Store version's). It keeps your profile and maps

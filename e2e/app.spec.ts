@@ -34,6 +34,7 @@ test.beforeAll(async () => {
   const exe = join(dir, "project-mouse.exe");
   copyFileSync("src-tauri/target/debug/project-mouse.exe", exe);
   app = spawn(exe, [], {
+    stdio: "ignore",
     env: { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${PORT}` },
   });
   browser = await connect();
@@ -53,6 +54,8 @@ test.afterAll(async () => {
   rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
 });
 
+// Saves are optimistic in the UI, so wait for the backend's answer before reloading.
+const saved = () => page.waitForResponse((r) => r.url().includes("ipc.localhost/set_"));
 const tab = (name: string) => page.getByRole("navigation", { name: "Pages" }).getByRole("button", { name });
 
 test("every tab loads its settings", async () => {
@@ -84,9 +87,9 @@ test("Start and Stop", async () => {
 
 test("settings survive a reload", async () => {
   await tab("Movement").click();
-  await page.getByLabel("Direction", { exact: true }).selectOption("Circle");
+  await Promise.all([saved(), page.getByLabel("Direction", { exact: true }).selectOption("Circle")]);
   await tab("Schedules").click();
-  await page.getByRole("button", { name: "+ Stop time" }).click();
+  await Promise.all([saved(), page.getByRole("button", { name: "+ Stop time" }).click()]);
   await expect(page.getByLabel("Action for schedule 1")).toHaveValue("Stop");
 
   await page.reload();

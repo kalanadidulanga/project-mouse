@@ -13,7 +13,7 @@ class Boundary extends React.Component<{ children: React.ReactNode }, { error?: 
     return (
       <div className="crash" role="alert">
         <h1>Something went wrong</h1>
-        <p className="note">{this.state.error.message}</p>
+        <p className="note">{this.state.error.message ?? String(this.state.error)}</p>
         <button className="btn primary" onClick={() => location.reload()}>
           Reload
         </button>

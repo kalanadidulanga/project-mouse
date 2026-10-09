@@ -14,8 +14,8 @@ pub struct Imported {
     pub pause_when_locked: Option<bool>,
     pub blackouts: Vec<Blackout>,
     pub schedules: Vec<Schedule>,
-    /// Move Mouse's cursor action as Home's movement, or `None` if it had no enabled one, in
-    /// which case the current movement settings are left alone.
+    /// Move Mouse's cursor action as the Movement tab's settings, or `None` if it had no enabled
+    /// one, in which case the current movement settings are left alone.
     pub input: Option<InputSettings>,
     pub report: Vec<String>,
 }
@@ -109,8 +109,8 @@ fn xs_duration_minutes(s: &str) -> Option<u32> {
             let v: u32 = num.parse().ok()?;
             num.clear();
             match c {
-                'H' => total += v * 60,
-                'M' => total += v,
+                'H' => total = total.checked_add(v.checked_mul(60)?)?,
+                'M' => total = total.checked_add(v)?,
                 'S' => {}
                 _ => return None,
             }
@@ -141,7 +141,7 @@ fn minute_of_day(s: &str) -> Option<u16> {
     let m = xs_duration_minutes(s).or_else(|| {
         let mut p = s.trim().split(':');
         let (h, m): (u32, u32) = (p.next()?.parse().ok()?, p.next()?.parse().ok()?);
-        Some(h * 60 + m)
+        h.checked_mul(60)?.checked_add(m)
     })?;
     Some((m % 1440) as u16)
 }
@@ -182,7 +182,7 @@ pub fn import(xml: &str) -> Result<Imported, String> {
     }
 
     let mut blackouts = Vec::new();
-    for bo in named(root, "Blackout").filter(|n| enabled(*n)) {
+    for bo in named(root, "Blackout") {
         let (Some(start), Some(dur)) = (
             child_text(bo, "Time").as_deref().and_then(minute_of_day),
             child_text(bo, "Duration")
@@ -195,8 +195,8 @@ pub fn import(xml: &str) -> Result<Imported, String> {
         blackouts.push(Blackout {
             days: days_of(bo),
             from: start,
-            to: ((start as u32 + dur) % 1440) as u16,
-            enabled: true,
+            to: ((start as u32 + dur % 1440) % 1440) as u16,
+            enabled: enabled(bo),
         });
     }
     if !blackouts.is_empty() {
@@ -254,7 +254,7 @@ pub fn import(xml: &str) -> Result<Imported, String> {
     let n_actions = named(root, "Actions")
         .flat_map(|a| a.children().filter(Node::is_element))
         .count();
-    // The first enabled cursor action becomes Home's movement (spec 005).
+    // The first enabled cursor action becomes the Movement tab's settings (spec 005).
     let cursor = named(root, "MoveMouseCursorAction").find(|n| enabled(*n));
     let input = cursor.map(|a| {
         let direction = child_text(a, "Direction").unwrap_or_else(|| "Square".into());
@@ -350,7 +350,7 @@ mod tests {
     }
 
     #[test]
-    fn a_blackout_is_added_and_a_disabled_or_bad_one_is_not() {
+    fn a_blackout_is_added_a_disabled_one_stays_disabled_and_a_bad_one_is_not() {
         let xml = r#"<Settings><Blackouts>
           <Blackout><Time>PT18H</Time><Duration>PT2H</Duration>
             <Monday>true</Monday><Tuesday>false</Tuesday><Wednesday>false</Wednesday>
@@ -358,10 +358,15 @@ mod tests {
             <Sunday>false</Sunday></Blackout>
           <Blackout><IsEnabled>false</IsEnabled><Time>PT1H</Time><Duration>PT1H</Duration></Blackout>
           <Blackout><Time>soon</Time><Duration>PT1H</Duration></Blackout>
+          <Blackout><Time>PT71582789H</Time><Duration>PT1H</Duration></Blackout>
+          <Blackout><Time>PT1H</Time><Duration>PT4294967295M</Duration></Blackout>
         </Blackouts></Settings>"#;
+        // Hand-edited absurd values overflow u32: skipped or wrapped, never a panic.
         let r = import(xml).unwrap();
-        assert_eq!(r.blackouts.len(), 1);
+        assert_eq!(r.blackouts.len(), 3);
         let b = &r.blackouts[0];
+        assert!(b.enabled && !r.blackouts[1].enabled);
+        assert_eq!(r.blackouts[2].to, 315); // 01:00 + (u32::MAX % 1440 = 255) min
         assert_eq!((b.from, b.to), (1080, 1200));
         assert_eq!(b.days, [true, false, false, false, false, false, false]);
         assert!(r.report.iter().any(|l| l.contains("unparseable")));
