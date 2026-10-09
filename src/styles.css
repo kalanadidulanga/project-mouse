@@ -73,6 +73,19 @@ body {
 .content { padding: 20px 24px; overflow-y: auto; }
 .content h1 { font-size: 15px; font-weight: 600; margin: 0 0 16px; }
 
+/* Thin, themed scrollbar (WebView2 is Chromium). The track is invisible; the thumb uses the
+   theme's border/secondary-text colours so it reads in light and dark alike. */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-2); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
 .row { display: flex; justify-content: space-between; align-items: center; padding: 10px 2px; border-bottom: 1px solid var(--border); }
 .row:last-child { border-bottom: none; }
 .row .k { color: var(--text-2); font-size: 13px; }

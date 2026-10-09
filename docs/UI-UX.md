@@ -180,7 +180,7 @@ Created on demand, destroyed on close. Small, fixed size, not resizable, not max
 
 > ⚠️ Superseded by §0.5 (2026-10-09): the rail is Home / Settings / Advanced.
 
-**640 × 480, fixed.** Not resizable. A settings window that can be dragged to 1920px wide is a
+**760 × 540, fixed.** Not resizable. A settings window that can be dragged to 1920px wide is a
 window whose layout you now have to defend at every width, for no benefit, nobody wants a
 fullscreen mouse jiggler.
 
