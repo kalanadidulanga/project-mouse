@@ -5,8 +5,10 @@ while it runs. Windows, the screen lock and apps that watch for idle time see ac
 button: **Start**. Underneath is a wake lock with a rules engine.
 
 **Using it:** open the app and press **Start**. *Next move in m:ss* counts down and restarts
-whenever you touch the mouse or keyboard. Close the window and it keeps running in the tray,
-next to the clock. **Stop**, the tray menu or Ctrl+Alt+K turns it off.
+whenever you touch the mouse or keyboard. *Run for* stops it by itself. The tabs on the left
+hold everything else: how it moves, when it pauses, schedules, quiet times and appearance. Close
+the window and it keeps running in the tray, next to the clock. **Stop**, the tray menu or
+Ctrl+Alt+K turns it off.
 
 It does not change your power plan, and it releases everything on exit. Monitoring software can
 detect simulated input. With *Move the mouse* off (Settings) it sends no input at all, and then

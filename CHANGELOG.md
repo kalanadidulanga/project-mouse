@@ -5,6 +5,19 @@
 project-mouse is now something you can see. v0.2.1 opened no window on a normal launch, so all
 you got was a tray icon (often hidden), and moving the mouse was a switch buried in Settings.
 
+### Added (Move Mouse parity)
+
+- Seven tabs: Home, Movement, Behaviour, Schedules, Blackouts, Appearance and About. Each setting
+  has a short line, with the details behind a **?**.
+- Every Move Mouse direction, random distance and wait, speed, and *Stop if I move the mouse*.
+  Moves now land exactly and come back exactly, even at a screen edge.
+- **Run for** 30 min to 4 h, or until a time.
+- Pauses: on battery, when locked (on by default) and while presenting, plus Blackouts and
+  Schedules.
+- *Keep awake while these apps run* replaces the rule builder.
+- Always on top, a taskbar dot, notifications for things you didn't do yourself, and live idle
+  time.
+
 ### Changed
 
 - **The window opens when you start the app**, on **Home**: one **Start/Stop** button, what is
@@ -32,6 +45,9 @@ you got was a tray icon (often hidden), and moving the mouse was a switch buried
 
 ### Notes
 
+- Config moves to v4. Old app rules become the apps list; any other old rule is listed under
+  About, Troubleshooting.
+- The Advanced tab, profiles and the "keep awake for a while" timer are gone from the window.
 - Config moves to v3 on first launch. If you never switched input on in v0.2.x, your movement
   settings start fresh at the new defaults. Whether it was running is no longer remembered:
   use *Start automatically when project-mouse opens*.
