@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.0.0
 
 project-mouse is now something you can see. v0.2.1 opened no window on a normal launch, so all
 you got was a tray icon (often hidden), and moving the mouse was a switch buried in a settings page.
