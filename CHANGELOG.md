@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased
+
+project-mouse is now something you can see. v0.2.1 opened no window on a normal launch, so all
+you got was a tray icon (often hidden), and moving the mouse was a switch buried in Settings.
+
+### Changed
+
+- **The window opens when you start the app**, on **Home**: one **Start/Stop** button, what is
+  true right now, and *Next move in m:ss*. Closing it keeps the app running in the tray. Opening
+  the app again brings the window back. Autostart still starts in the tray.
+- **Start moves the mouse and keeps the PC awake**, together. The mouse moves once the PC has
+  had no input for the number of seconds you set (60 by default), so it never moves while you
+  are working. *Move the mouse* and *Keep the screen on* are in Settings.
+- **Each move traces a whole small square** (or a line or a circle) and comes back to where it
+  started. Before, one 10 px side moved per interval, which looked like nothing. **Test**
+  shows it straight away.
+- **The tray icon is grey while stopped**, the menu is Start/Stop, and the tooltip shows the
+  countdown. Ctrl+Alt+K starts and stops it.
+- The old Status, Rules and Activity pages, and the rest of Settings, are under **Advanced**,
+  unchanged. Off / Keep running / Keep presenting and Pause are gone, because Start/Stop does
+  their job. The first-run question is gone too.
+- **Import from Move Mouse** now brings your movement settings across, and finds
+  `Settings.xml` by itself (including the Store version's).
+
+### Fixed
+
+- A Windows-blocked move is retried once per interval instead of every second.
+- A config file that is valid JSON but not an object no longer crashes the app at launch. It is
+  treated as corrupt and kept.
+
+### Notes
+
+- Config moves to v3 on first launch. If you never switched input on in v0.2.x, your movement
+  settings start fresh at the new defaults. Whether it was running is no longer remembered:
+  use *Start automatically when project-mouse opens*.
+
 ## v0.2.1
 
 An available update is now visible.

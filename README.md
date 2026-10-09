@@ -1,14 +1,20 @@
 # project-mouse
 
-An open-source Windows wake lock with a rules engine behind it.
+Moves your mouse a few pixels when your PC has had no input for a while, and keeps the PC awake
+while it runs. Windows, the screen lock and apps that watch for idle time see activity. One
+button: **Start**. Underneath is a wake lock with a rules engine.
 
-> **A task-bound wake lock.** It keeps the machine awake for exactly as long as your work
-> actually needs, and not one second longer.
+**Using it:** open the app and press **Start**. *Next move in m:ss* counts down and restarts
+whenever you touch the mouse or keyboard. Close the window and it keeps running in the tray,
+next to the clock. **Stop**, the tray menu or Ctrl+Alt+K turns it off.
 
-It does not modify your power plan. It releases everything on exit. By default it synthesizes
-no input at all.
+It does not change your power plan, and it releases everything on exit. Monitoring software can
+detect simulated input. With *Move the mouse* off (Settings) it sends no input at all, and then
+it cannot defeat a screen lock or a chat presence indicator.
 
 *(`project-mouse` is a working title — see [PRODUCT.md §9](docs/PRODUCT.md#9-the-name).)*
+
+The rest of this README explains the engine underneath.
 
 ---
 
