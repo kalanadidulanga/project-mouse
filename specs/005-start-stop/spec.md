@@ -116,10 +116,12 @@ on one scrolling page.
   *monitoring software can detect simulated input*.
 - **FR-011 Settings:** the US4 list, plus `get_autostart`/`set_autostart` IPC so the UI checkbox
   and the tray check item agree.
-- **FR-012 Advanced:** the existing panels move here unchanged. The Off/Keep running/Keep
-  presenting buttons and the Pause switch are removed, since they duplicate Start/Stop.
-  `pause_all`/`resume_all` and the engine's pause flag go too. Only that switch used them, and
-  each rule keeps its own enable toggle.
+- **FR-012 Advanced:** the existing panels move here unchanged. The exception is the Move Mouse
+  importer: it now carries the cursor action's interval, direction and distance into Home and
+  turns Move the mouse on. Left empty, it finds `Settings.xml` in either of Move Mouse's usual
+  places. The Off/Keep running/Keep presenting buttons and the Pause switch are removed, since
+  they duplicate Start/Stop. `pause_all`/`resume_all` and the engine's pause flag go too. Only
+  that switch used them, and each rule keeps its own enable toggle.
 - **FR-013 Remove first run:** delete the `FirstRun` component, `is_first_run`/
   `complete_first_run` and the `FIRST_RUN` flag.
 - **FR-014 Config v3:** add `move_mouse` (default true), `keep_screen_on` (true) and

@@ -1,6 +1,7 @@
 //! Thin, **synchronous** Tauri commands (keeping tokio dormant — TAURI-V2 §0.2). Each is a wrapper
 //! over `core`; the React UI holds only a projection of state, never the state itself.
 
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
@@ -274,19 +275,43 @@ pub fn set_input_settings(
     applied
 }
 
-/// Import a Move Mouse `Settings.xml` → the active profile (power-only default). Returns the report.
+/// Import a Move Mouse `Settings.xml` → the active profile and movement. Returns the report.
 #[tauri::command]
 pub fn import_move_mouse(
     app: AppHandle,
     engine: State<'_, SharedEngine>,
     input: State<'_, SharedInput>,
+    run: State<'_, SharedRun>,
     path: String,
 ) -> Result<Vec<String>, String> {
-    let xml = std::fs::read_to_string(&path).map_err(|e| format!("cannot read {path}: {e}"))?;
+    // Empty → look where Move Mouse keeps it. Quotes from Explorer's "Copy as path" are stripped.
+    let path = match path.trim().trim_matches('"') {
+        "" => {
+            let appdata = std::env::var_os("APPDATA").map(PathBuf::from);
+            let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+            crate::config::import_movemouse::default_paths(appdata.as_deref(), local.as_deref())
+                .into_iter()
+                .find(|p| p.exists())
+                .ok_or(
+                    "Move Mouse's Settings.xml is not in either usual place. Paste its full path.",
+                )?
+        }
+        p => PathBuf::from(p),
+    };
+    let xml = std::fs::read_to_string(&path)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     let imported = crate::config::import_movemouse::import(&xml)?;
     engine.lock().unwrap().set_profile(imported.profile);
-    input.lock().unwrap().set_enabled(imported.input_enabled);
-    crate::persist_current(&app);
+    if let Some(s) = imported.input {
+        input.lock().unwrap().set_settings(s);
+        let settings = RunSettings {
+            move_mouse: true,
+            ..*run.lock().unwrap()
+        };
+        crate::set_run_settings(&app, settings); // re-applies and saves
+    } else {
+        crate::persist_current(&app);
+    }
     Ok(imported.report)
 }
 

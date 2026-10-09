@@ -1,18 +1,51 @@
 //! Import a Move Mouse `Settings.xml` → our rules (MOVE-MOUSE.md §7). The report is part of the
-//! feature: state what was imported, approximated, and dropped — and default to **power-only**
-//! (Keep running, no synthetic input), which is the honest replacement for a Move Mouse jiggle.
+//! feature: state what was imported, approximated, and dropped. Move Mouse's cursor action becomes Home's
+//! movement (spec 005). Start now does what Move Mouse did, plus the power request it never
+//! had.
 
 use roxmltree::{Document, Node};
+use std::path::{Path, PathBuf};
 
+use crate::core::input_engine::InputSettings;
 use crate::core::modes::WakeMode;
+use crate::core::motion::Motion;
 use crate::core::rule::{Condition, Profile, Rule};
 
 pub struct Imported {
     pub profile: Profile,
-    /// The honest default: false. Move Mouse's jiggle becomes Keep running (no synthetic input);
-    /// the user can turn synthesis on later if they specifically need a session/presence timer.
-    pub input_enabled: bool,
+    /// Move Mouse's cursor action as Home's movement, or `None` if it had no enabled one, in
+    /// which case the current movement settings are left alone.
+    pub input: Option<InputSettings>,
     pub report: Vec<String>,
+}
+
+/// Where Move Mouse keeps `Settings.xml`: the GitHub/portable build, then the Store build
+/// (MOVE-MOUSE.md §7). The caller supplies `%APPDATA%` and `%LOCALAPPDATA%`.
+pub fn default_paths(appdata: Option<&Path>, local_appdata: Option<&Path>) -> Vec<PathBuf> {
+    let tail = ["Ellanet", "Move Mouse", "Settings.xml"];
+    let mut out = Vec::new();
+    if let Some(a) = appdata {
+        out.push(tail.iter().fold(a.to_path_buf(), |p, s| p.join(s)));
+    }
+    if let Some(l) = local_appdata {
+        let store = l
+            .join("Packages")
+            .join("1258EllAbi.MoveMouse_hjfwaxvfbwh7t")
+            .join("LocalCache")
+            .join("Roaming");
+        out.push(tail.iter().fold(store, |p, s| p.join(s)));
+    }
+    out
+}
+
+/// Move Mouse's `Direction` → the nearest closed motion here, and whether that is exact.
+fn motion_of(direction: &str) -> (Motion, bool) {
+    match direction {
+        "Square" => (Motion::Square, true),
+        "None" => (Motion::Virtual, true), // Stealth
+        "LeftAndRight" | "RightAndLeft" => (Motion::Line, true),
+        _ => (Motion::Square, false),
+    }
 }
 
 fn child_text<'a>(node: Node<'a, 'a>, name: &str) -> Option<String> {
@@ -82,15 +115,6 @@ pub fn import(xml: &str) -> Result<Imported, String> {
     let mut report = Vec::new();
     let mut conditions = Vec::new();
 
-    // Move Mouse is 100% synthetic input; its jiggle keeps the session alive. The honest
-    // replacement is Keep running (power only), so we default input synthesis OFF.
-    report.push(
-        "Your Move Mouse jiggle is replaced by 'Keep running' — the machine stays awake with no \
-         synthetic input. Turn on input synthesis in Settings only if you need a session or \
-         presence timer that keeping awake cannot reset."
-            .into(),
-    );
-
     if desc_flag(root, "PauseOnBattery").unwrap_or(false) {
         conditions.push(Condition::OnACPower);
         report.push("Pause on battery → hold only while on AC power.".into());
@@ -136,10 +160,52 @@ pub fn import(xml: &str) -> Result<Imported, String> {
         .descendants()
         .filter(|n| n.tag_name().name().ends_with("Action"))
         .count();
-    if n_actions > 0 {
+    // The first enabled cursor action becomes Home's movement (spec 005).
+    let cursor = root.descendants().find(|n| {
+        n.tag_name().name() == "MoveMouseCursorAction"
+            && child_text(*n, "IsEnabled").is_none_or(|v| v.eq_ignore_ascii_case("true"))
+    });
+    let input = cursor.map(|a| {
+        let direction = child_text(a, "Direction").unwrap_or_else(|| "Square".into());
+        let (motion, exact) = motion_of(&direction);
+        let distance_px = child_text(a, "Distance")
+            .and_then(|d| d.parse().ok())
+            .unwrap_or(10);
+        let interval_secs = child_text(root, "LowerInterval")
+            .and_then(|t| t.parse().ok())
+            .unwrap_or(30);
         report.push(format!(
-            "{n_actions} Move Mouse action(s) not imported — project-mouse is power-first; add input \
-             synthesis manually if you need it."
+            "Mouse movement → Home: {direction}, {distance_px} px, after {interval_secs} s with no \
+             input. Press Start to use it."
+        ));
+        if !exact {
+            report.push(format!(
+                "'{direction}' has no exact match here, so it became a small square."
+            ));
+        }
+        if desc_flag(root, "RandomInterval").unwrap_or(false) {
+            report.push(
+                "A random interval was not carried over. Settings → Vary does the same job.".into(),
+            );
+        }
+        InputSettings {
+            interval_secs,
+            key: 0,
+            motion,
+            distance_px,
+            vary_pct: 0,
+        }
+    });
+    if input.is_none() {
+        report.push(
+            "No enabled cursor action found, so Home's movement settings are unchanged.".into(),
+        );
+    }
+    let others = n_actions - usize::from(cursor.is_some());
+    if others > 0 {
+        report.push(format!(
+            "{others} other Move Mouse action(s) not imported — click, scroll, keys and commands \
+             have no equivalent here."
         ));
     }
     if root
@@ -167,7 +233,7 @@ pub fn import(xml: &str) -> Result<Imported, String> {
 
     Ok(Imported {
         profile,
-        input_enabled: false,
+        input,
         report,
     })
 }
@@ -175,6 +241,17 @@ pub fn import(xml: &str) -> Result<Imported, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::input_engine::InputSettings;
+    use crate::core::motion::Motion;
+    use std::path::Path;
+
+    /// Kalana's own Settings.xml, trimmed to what matters (spec 005 Input).
+    const KALANA: &str = r#"<Settings>
+      <Actions><MoveMouseCursorAction>
+        <IsEnabled>true</IsEnabled><Direction>Square</Direction><Distance>10</Distance>
+      </MoveMouseCursorAction></Actions>
+      <LowerInterval>200</LowerInterval><UpperInterval>200</UpperInterval>
+    </Settings>"#;
 
     #[test]
     fn rejects_non_movemouse_xml() {
@@ -193,7 +270,6 @@ mod tests {
         assert!(conds.contains(&Condition::OnACPower));
         assert!(conds.contains(&Condition::SessionUnlocked));
         assert_eq!(r.profile.rules[0].mode, WakeMode::KeepRunning);
-        assert!(!r.input_enabled); // power-only default
         assert!(!r.profile.rules[0].enabled); // disabled until reviewed
     }
 
@@ -223,12 +299,91 @@ mod tests {
     }
 
     #[test]
+    fn the_cursor_action_becomes_homes_movement() {
+        let r = import(KALANA).unwrap();
+        assert_eq!(
+            r.input,
+            Some(InputSettings {
+                interval_secs: 200,
+                key: 0,
+                motion: Motion::Square,
+                distance_px: 10,
+                vary_pct: 0
+            })
+        );
+        assert!(
+            !r.report.iter().any(|l| l.contains("not imported")),
+            "{:?}",
+            r.report
+        );
+    }
+
+    #[test]
+    fn stealth_becomes_invisible() {
+        let xml = KALANA.replace(
+            "<Direction>Square</Direction>",
+            "<Direction>None</Direction>",
+        );
+        assert_eq!(import(&xml).unwrap().input.unwrap().motion, Motion::Virtual);
+    }
+
+    #[test]
+    fn an_unmatched_direction_is_approximated_and_said_so() {
+        let xml = KALANA.replace(
+            "<Direction>Square</Direction>",
+            "<Direction>NorthEast</Direction>",
+        );
+        let r = import(&xml).unwrap();
+        assert_eq!(r.input.unwrap().motion, Motion::Square);
+        assert!(
+            r.report.iter().any(|l| l.contains("no exact match")),
+            "{:?}",
+            r.report
+        );
+    }
+
+    #[test]
+    fn a_disabled_cursor_action_is_not_used() {
+        let xml = KALANA.replace(
+            "<IsEnabled>true</IsEnabled>",
+            "<IsEnabled>false</IsEnabled>",
+        );
+        assert_eq!(import(&xml).unwrap().input, None);
+    }
+
+    #[test]
+    fn no_cursor_action_leaves_movement_alone() {
+        let r = import("<Settings/>").unwrap();
+        assert_eq!(r.input, None);
+        assert!(
+            r.report.iter().any(|l| l.contains("unchanged")),
+            "{:?}",
+            r.report
+        );
+    }
+
+    #[test]
     fn reports_dropped_actions() {
         let xml = r#"<Settings><Actions><MoveMouseCursorAction/><ClickMouseAction/></Actions></Settings>"#;
         let r = import(xml).unwrap();
-        assert!(r
-            .report
-            .iter()
-            .any(|l| l.contains("action(s) not imported")));
+        assert!(r.input.is_some());
+        assert!(
+            r.report
+                .iter()
+                .any(|l| l.contains("1 other Move Mouse action(s) not imported")),
+            "{:?}",
+            r.report
+        );
+    }
+
+    #[test]
+    fn looks_in_the_portable_place_then_the_store_place() {
+        let p = default_paths(Some(Path::new("C:/R")), Some(Path::new("C:/L")));
+        assert_eq!(p[0], Path::new("C:/R/Ellanet/Move Mouse/Settings.xml"));
+        assert_eq!(
+            p[1],
+            Path::new("C:/L/Packages/1258EllAbi.MoveMouse_hjfwaxvfbwh7t/LocalCache/Roaming/Ellanet/Move Mouse/Settings.xml")
+        );
+        assert!(default_paths(None, None).is_empty());
     }
 }
