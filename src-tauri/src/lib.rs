@@ -20,7 +20,9 @@ use tauri::{Emitter, Manager};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_updater::UpdaterExt;
 
+use crate::config::model::Appearance;
 use crate::config::{model::Config, store};
+use crate::core::autopilot::Timetable;
 use crate::core::engine::Engine;
 use crate::core::evaluator::soonest_expiry_secs;
 use crate::core::input_engine::{InputEngine, InputSettings};
@@ -66,6 +68,10 @@ pub(crate) type SharedInput = Arc<Mutex<InputEngine>>;
 pub(crate) type SharedProfiles = Arc<Mutex<Vec<Profile>>>;
 /// What Start means (spec 005).
 pub(crate) type SharedRun = Arc<Mutex<RunSettings>>;
+/// Schedules and blackouts (spec 006).
+pub(crate) type SharedTimetable = Arc<Mutex<Timetable>>;
+/// Always on top, the taskbar dot, notifications.
+pub(crate) type SharedAppearance = Arc<Mutex<Appearance>>;
 
 /// Where the config file lives, and whether saving is allowed. Saving is disabled when the on-disk
 /// config was corrupt, so we never overwrite a file the user may want to recover (FEATURES D8).
@@ -259,6 +265,8 @@ pub(crate) fn persist_current(app: &tauri::AppHandle) {
         .clone();
     let input = app.state::<SharedInput>().lock().unwrap().settings();
     let run = *app.state::<SharedRun>().lock().unwrap();
+    let timetable = app.state::<SharedTimetable>().lock().unwrap().clone();
+    let appearance = *app.state::<SharedAppearance>().lock().unwrap();
     let p = app.state::<Mutex<Persist>>();
     let p = p.lock().unwrap();
     if !p.enabled {
@@ -279,6 +287,8 @@ pub(crate) fn persist_current(app: &tauri::AppHandle) {
         profiles: all,
         input,
         run,
+        timetable,
+        appearance,
         auto_update: auto_update_enabled(),
         ..Config::default()
     };
@@ -390,28 +400,37 @@ pub fn run() {
     // Restore last manual mode + active profile; a corrupt config disables saving so it is
     // preserved (FEATURES D8).
     let cfg_path = store::resolve_config_path();
-    let (initial_profile, initial_input, run_settings, stored, save_enabled) =
-        match store::load(&cfg_path) {
-            Ok(c) => (
-                c.active().cloned(),
-                c.input,
-                c.run,
-                c.profiles.clone(),
-                true,
-            ),
-            Err(e) => {
-                tracing::error!(
-                    "config load failed ({e}); starting stopped and preserving the file"
-                );
-                (
-                    None,
-                    InputSettings::default(),
-                    RunSettings::default(),
-                    Vec::new(),
-                    false,
-                )
-            }
-        };
+    let (
+        initial_profile,
+        initial_input,
+        run_settings,
+        timetable_value,
+        appearance_value,
+        stored,
+        save_enabled,
+    ) = match store::load(&cfg_path) {
+        Ok(c) => (
+            c.active().cloned(),
+            c.input,
+            c.run,
+            c.timetable.sanitised(),
+            c.appearance,
+            c.profiles.clone(),
+            true,
+        ),
+        Err(e) => {
+            tracing::error!("config load failed ({e}); starting stopped and preserving the file");
+            (
+                None,
+                InputSettings::default(),
+                RunSettings::default(),
+                Timetable::default(),
+                Appearance::default(),
+                Vec::new(),
+                false,
+            )
+        }
+    };
 
     let mut engine = Engine::new(power);
     if let Some(p) = initial_profile {
@@ -446,6 +465,8 @@ pub fn run() {
     let stored_profiles: SharedProfiles = Arc::new(Mutex::new(stored));
     let input_engine: SharedInput = Arc::new(Mutex::new(input_engine));
     let run_state: SharedRun = Arc::new(Mutex::new(run_settings));
+    let timetable: SharedTimetable = Arc::new(Mutex::new(timetable_value.clone()));
+    let appearance: SharedAppearance = Arc::new(Mutex::new(appearance_value));
 
     let sampler = Arc::new(Sampler::new(
         platform.processes.clone(),
@@ -481,6 +502,8 @@ pub fn run() {
         .manage(input_engine.clone())
         .manage(stored_profiles.clone())
         .manage(run_state.clone())
+        .manage(timetable.clone())
+        .manage(appearance.clone())
         .manage(sampler.clone())
         .manage(inspector)
         .manage(Mutex::new(Persist {
