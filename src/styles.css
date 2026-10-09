@@ -251,3 +251,8 @@ body {
 details.troubleshoot > summary { cursor: default; font-size: 13px; font-weight: 600; padding: 4px 0; }
 details.troubleshoot > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 details.troubleshoot h2 { margin-top: 16px; }
+
+/* Render crash fallback (main.tsx). */
+.crash {
+  padding: 24px;
+}

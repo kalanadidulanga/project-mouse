@@ -125,6 +125,7 @@ CI fails if these regress.
 | UI | React + TypeScript | Loaded only when a window exists |
 | Config | JSON, atomic write | The whole dataset is tens of KB; SQLite would cost ~1 MB of binary for nothing |
 | Logging | `tracing` + rolling file | Off at `debug` by default |
+| Tests | `cargo test` + Playwright | `npm run test:e2e` builds the app and drives its real window over the WebView2 DevTools port (close any running copy first) |
 
 **The load-bearing idea:** the settings window is open about two minutes a day, so the webview
 is created on demand and **destroyed** on close: never hidden. That single discipline is where
