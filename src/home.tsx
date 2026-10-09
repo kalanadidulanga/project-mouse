@@ -1,6 +1,6 @@
 // Home (spec 006 FR-024): what is true right now, one button, Run for, and a summary of the
 // movement with a way to change it.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -83,7 +83,7 @@ function explanation(input: InputSettings, run: RunSettings): string {
 
 function summary(input: InputSettings, run: RunSettings): string {
   if (!run.move_mouse) return "Mouse moves are off";
-  const what = input.key !== 0 ? keyLabel(input.key) : motionLabel(input.motion);
+  const what = input.key !== 0 ? keyLabel(input.key) : input.motion === "Virtual" ? "Invisible" : motionLabel(input.motion);
   const wait = input.interval_random ? `${input.interval_secs} to ${input.interval_max_secs} s` : `${input.interval_secs} s`;
   return `${what} after ${wait} with no input`;
 }
@@ -97,8 +97,27 @@ export default function Home({ go }: { go: (page: "movement" | "behaviour") => v
   const [testing, setTesting] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
+  const synced = useRef(false);
+
   const read = useCallback(() => {
-    invoke<Status>("get_status").then(setS).catch(() => {});
+    invoke<Status>("get_status")
+      .then((st) => {
+        setS(st);
+        // First read after mount only: show the run that is already active (Home remounts on tab change).
+        if (!synced.current) {
+          synced.current = true;
+          if (st.running) {
+            if (st.stops_at != null) {
+              const d = new Date(st.stops_at * 1000);
+              setChoice("until");
+              setUntil(d.getHours() * 60 + d.getMinutes());
+            } else {
+              setChoice("forever");
+            }
+          }
+        }
+      })
+      .catch(() => {});
   }, []);
   const readSettings = useCallback(() => {
     invoke<InputSettings>("get_input_settings").then(setInput).catch(() => {});
@@ -128,6 +147,14 @@ export default function Home({ go }: { go: (page: "movement" | "behaviour") => v
       .then(read)
       .catch(() => {});
 
+  const pickRunFor = (c: string) => {
+    if (c !== "until") return changeRunFor(c, until);
+    // Seed a visible deadline: now + 1 h, rounded up to 5 minutes.
+    const n = new Date();
+    const m = Math.ceil((n.getHours() * 60 + n.getMinutes() + 60) / 5) * 5;
+    changeRunFor(c, m % 1440);
+  };
+
   const changeRunFor = (c: string, u: number) => {
     setChoice(c);
     setUntil(u);
@@ -154,7 +181,7 @@ export default function Home({ go }: { go: (page: "movement" | "behaviour") => v
           <span className="dot" aria-hidden="true" />
           {d?.title ?? " "}
         </div>
-        <div className="status-detail" role="timer">
+        <div className="status-detail" role={s?.kind === "running" ? "timer" : undefined}>
           {d?.detail ?? " "}
         </div>
         {running && s && (
@@ -177,7 +204,7 @@ export default function Home({ go }: { go: (page: "movement" | "behaviour") => v
         <div className="field">
           <span>Run for</span>
           <span className="inline">
-            <select className="btn" aria-label="Run for" value={choice} onChange={(e) => changeRunFor(e.target.value, until)}>
+            <select className="btn" aria-label="Run for" value={choice} onChange={(e) => pickRunFor(e.target.value)}>
               {RUN_FOR.map(([id, label]) => (
                 <option key={id} value={id}>
                   {label}
