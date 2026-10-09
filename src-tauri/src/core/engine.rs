@@ -15,7 +15,6 @@ pub struct Engine {
     reconciler: PowerReconciler,
     manual: WakeMode,
     profile: Profile,
-    paused: bool,
     last: WakeMode,
 }
 
@@ -25,7 +24,6 @@ impl Engine {
             reconciler: PowerReconciler::new(power),
             manual: WakeMode::Off,
             profile: Profile::new("default", "Default"),
-            paused: false,
             last: WakeMode::Off,
         }
     }
@@ -46,10 +44,6 @@ impl Engine {
         &self.profile
     }
 
-    pub fn profile_name(&self) -> &str {
-        &self.profile.name
-    }
-
     pub fn upsert_rule(&mut self, rule: Rule) {
         match self.profile.rules.iter_mut().find(|r| r.id == rule.id) {
             Some(existing) => *existing = rule,
@@ -67,27 +61,14 @@ impl Engine {
         }
     }
 
-    pub fn set_paused(&mut self, paused: bool) {
-        self.paused = paused;
-    }
-
-    pub fn paused(&self) -> bool {
-        self.paused
-    }
-
     /// The effective mode currently held (after the last tick).
     pub fn mode(&self) -> WakeMode {
         self.last
     }
 
     /// Recompute desired = max(manual, rules) and reconcile. Idempotent across identical ticks.
-    /// While paused, everything is suppressed (desired = Off).
     pub fn tick(&mut self, snap: &Snapshot) {
-        let desired = if self.paused {
-            WakeMode::Off
-        } else {
-            self.manual.max(desired_mode(&self.profile, snap))
-        };
+        let desired = self.manual.max(desired_mode(&self.profile, snap));
         if desired != self.last {
             tracing::info!(?desired, "reconciling wake mode");
             self.last = desired;

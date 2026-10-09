@@ -66,18 +66,6 @@ pub(crate) type SharedProfiles = Arc<Mutex<Vec<Profile>>>;
 /// What Start means (spec 005).
 pub(crate) type SharedRun = Arc<Mutex<RunSettings>>;
 
-/// Latched at startup: no config file existed, so the UI opens on the first-run question
-/// (spec FR-008). Cleared by the answer, never re-read from disk.
-static FIRST_RUN: AtomicBool = AtomicBool::new(false);
-
-pub(crate) fn is_first_run() -> bool {
-    FIRST_RUN.load(Ordering::SeqCst)
-}
-
-pub(crate) fn clear_first_run() {
-    FIRST_RUN.store(false, Ordering::SeqCst);
-}
-
 /// Where to persist mode, and whether saving is allowed. Saving is disabled when the on-disk
 /// config was corrupt, so we never overwrite a file the user may want to recover (FEATURES D8).
 struct Persist {
@@ -153,10 +141,10 @@ fn apply_forwarded(app: &tauri::AppHandle, argv: &[String]) {
     while let Some(a) = it.next() {
         match a.as_str() {
             "--show" => open_window(app),
-            "--release" => set_manual(app, WakeMode::Off),
+            "--release" => apply_mode(app, WakeMode::Off),
             "--keep" => {
                 if let Some(m) = it.next().and_then(|v| mode_from_cli(v)) {
-                    set_manual(app, m);
+                    apply_mode(app, m);
                 }
             }
             _ => {}
@@ -189,12 +177,62 @@ fn open_window(app: &tauri::AppHandle) {
     }
 }
 
-pub(crate) fn set_manual(app: &tauri::AppHandle, mode: WakeMode) {
-    app.state::<SharedEngine>().lock().unwrap().set_manual(mode);
-    if let Some(tray) = app.tray_by_id("main") {
-        let _ = tray.set_tooltip(Some(tooltip_for(mode)));
+/// Every start and stop goes through here (spec 005 FR-003): set the manual mode and bring the
+/// input engine into line, reconcile power now rather than on the next tick (so Stop is
+/// immediate — SC-004), then tell the tray and any open window. Lock order: run → engine → input.
+pub(crate) fn apply_mode(app: &tauri::AppHandle, mode: WakeMode) {
+    let settings = *app.state::<SharedRun>().lock().unwrap();
+    let snap = app.state::<Arc<Sampler>>().last();
+    {
+        let engine = app.state::<SharedEngine>();
+        let input = app.state::<SharedInput>();
+        let mut e = engine.lock().unwrap();
+        let mut ie = input.lock().unwrap();
+        running::apply(&mut e, &mut ie, &settings, mode);
+        e.tick(&snap);
     }
+    after_change(app);
+}
+
+/// Start or stop, using whatever Start means right now.
+pub(crate) fn set_running(app: &tauri::AppHandle, on: bool) {
+    let mode = if on {
+        app.state::<SharedRun>().lock().unwrap().start_mode()
+    } else {
+        WakeMode::Off
+    };
+    apply_mode(app, mode);
+}
+
+pub(crate) fn is_running(app: &tauri::AppHandle) -> bool {
+    running::is_running(&app.state::<SharedEngine>().lock().unwrap())
+}
+
+/// New settings take effect at once, running or not, and are saved.
+pub(crate) fn set_run_settings(app: &tauri::AppHandle, settings: RunSettings) {
+    *app.state::<SharedRun>().lock().unwrap() = settings;
+    let on = is_running(app);
+    set_running(app, on);
     persist_current(app);
+}
+
+/// Turn autostart on or off and report what actually took effect, keeping the tray's check item
+/// and the Settings switch in step.
+pub(crate) fn set_autostart(app: &tauri::AppHandle, on: bool) -> Result<bool, String> {
+    let mgr = app.autolaunch();
+    let res = if on { mgr.enable() } else { mgr.disable() };
+    rebuild_tray_menu(app);
+    res.map_err(|e| e.to_string())?;
+    tracing::info!(enabled = on, "autostart set");
+    Ok(mgr.is_enabled().unwrap_or(on))
+}
+
+/// Tell the tray and an open window that the state changed.
+fn after_change(app: &tauri::AppHandle) {
+    rebuild_tray_menu(app);
+    if app.get_webview_window("main").is_some() {
+        let _ = app.emit("state:changed", ());
+    }
 }
 
 /// Persist the whole current config — manual mode + the active profile's rules — atomically.
@@ -237,14 +275,9 @@ pub(crate) fn persist_current(app: &tauri::AppHandle) {
 }
 
 fn toggle_autostart(app: &tauri::AppHandle) {
-    let mgr = app.autolaunch();
-    let now = mgr.is_enabled().unwrap_or(false);
-    match if now { mgr.disable() } else { mgr.enable() } {
-        Ok(()) => {
-            tracing::info!(enabled = !now, "autostart toggled");
-            rebuild_tray_menu(app);
-        }
-        Err(e) => tracing::error!("autostart toggle failed: {e}"),
+    let now = app.autolaunch().is_enabled().unwrap_or(false);
+    if let Err(e) = set_autostart(app, !now) {
+        tracing::error!("autostart toggle failed: {e}");
     }
 }
 
@@ -433,7 +466,6 @@ pub fn run() {
     // Restore last manual mode + active profile; a corrupt config disables saving so it is
     // preserved (FEATURES D8).
     let cfg_path = store::resolve_config_path();
-    FIRST_RUN.store(!cfg_path.exists(), Ordering::SeqCst);
     let (initial_profile, initial_input, run_settings, stored, save_enabled) =
         match store::load(&cfg_path) {
             Ok(c) => (
@@ -509,13 +541,7 @@ pub fn run() {
                 .expect("valid shortcut")
                 .with_handler(|app, _shortcut, event| {
                     if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                        let cur = app.state::<SharedEngine>().lock().unwrap().manual();
-                        let next = if cur == WakeMode::Off {
-                            WakeMode::KeepRunning
-                        } else {
-                            WakeMode::Off
-                        };
-                        set_manual(app, next);
+                        set_running(app, !is_running(app));
                     }
                 })
                 .build(),
@@ -532,17 +558,20 @@ pub fn run() {
             enabled: save_enabled,
         }))
         .invoke_handler(tauri::generate_handler![
-            ipc::get_state,
-            ipc::set_mode,
-            ipc::pause_all,
-            ipc::resume_all,
+            ipc::get_status,
+            ipc::start,
+            ipc::stop,
+            ipc::test_move,
+            ipc::get_run_settings,
+            ipc::set_run_settings,
+            ipc::get_autostart,
+            ipc::set_autostart,
             ipc::get_diagnostics,
             ipc::get_logs,
             ipc::get_rules,
             ipc::upsert_rule,
             ipc::delete_rule,
             ipc::set_rule_enabled,
-            ipc::set_input_enabled,
             ipc::get_input_settings,
             ipc::set_input_settings,
             ipc::why_awake,
@@ -550,8 +579,6 @@ pub fn run() {
             ipc::set_profile,
             ipc::create_profile,
             ipc::delete_profile,
-            ipc::is_first_run,
-            ipc::complete_first_run,
             ipc::get_update_status,
             ipc::set_auto_update,
             ipc::check_for_update,
@@ -593,9 +620,9 @@ pub fn run() {
                     }
                 })
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "off" => set_manual(app, WakeMode::Off),
-                    "keep_running" => set_manual(app, WakeMode::KeepRunning),
-                    "keep_presenting" => set_manual(app, WakeMode::KeepPresenting),
+                    "off" => apply_mode(app, WakeMode::Off),
+                    "keep_running" => apply_mode(app, WakeMode::KeepRunning),
+                    "keep_presenting" => apply_mode(app, WakeMode::KeepPresenting),
                     "autostart" => toggle_autostart(app),
                     "check_update" => {
                         tauri::async_runtime::spawn(check_and_install(app.clone(), false));

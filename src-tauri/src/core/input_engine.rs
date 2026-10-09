@@ -130,7 +130,6 @@ impl InputEngine {
     }
 
     /// Seconds until the next move, rounded up. `None` while disabled.
-    #[allow(dead_code)] // Used in Task 3 (status payload)
     pub fn next_move_in_secs(&self) -> Option<u32> {
         self.next_move_in_ms.map(|ms| ms.div_ceil(1000))
     }

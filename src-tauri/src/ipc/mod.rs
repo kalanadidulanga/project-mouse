@@ -5,19 +5,22 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use tauri::{AppHandle, State};
+use tauri_plugin_autostart::ManagerExt;
 
 use crate::core::awake::{self, AwakeReport};
 use crate::core::engine::Engine;
 use crate::core::input_engine::{InputEngine, InputSettings};
 use crate::core::modes::WakeMode;
 use crate::core::profiles;
-use crate::core::rule::{Condition, Profile, Rule};
+use crate::core::rule::{Profile, Rule};
+use crate::core::running::{self, RunSettings, StatusKind};
 use crate::platform::PowerInspector;
 use crate::{logging, platform};
 
 type SharedEngine = Arc<Mutex<Engine>>;
 type SharedInput = Arc<Mutex<InputEngine>>;
 type SharedProfiles = Arc<Mutex<Vec<Profile>>>;
+type SharedRun = Arc<Mutex<RunSettings>>;
 type SharedInspector = Arc<dyn PowerInspector>;
 
 fn mode_str(m: WakeMode) -> &'static str {
@@ -26,22 +29,6 @@ fn mode_str(m: WakeMode) -> &'static str {
         WakeMode::KeepRunning => "keep_running",
         WakeMode::KeepPresenting => "keep_presenting",
     }
-}
-
-fn mode_from_str(s: &str) -> WakeMode {
-    match s {
-        "keep_running" => WakeMode::KeepRunning,
-        "keep_presenting" => WakeMode::KeepPresenting,
-        _ => WakeMode::Off,
-    }
-}
-
-#[derive(Serialize)]
-pub struct StateView {
-    pub effective_mode: String,
-    pub manual_mode: String,
-    pub paused: bool,
-    pub profile: String,
 }
 
 #[derive(Serialize)]
@@ -57,32 +44,6 @@ pub struct Diagnostics {
     pub input_enabled: bool,
     pub input_blocked: bool,
     pub remote_session: bool,
-}
-
-#[tauri::command]
-pub fn get_state(engine: State<'_, SharedEngine>) -> StateView {
-    let e = engine.lock().unwrap();
-    StateView {
-        effective_mode: mode_str(e.mode()).into(),
-        manual_mode: mode_str(e.manual()).into(),
-        paused: e.paused(),
-        profile: e.profile_name().into(),
-    }
-}
-
-#[tauri::command]
-pub fn set_mode(app: AppHandle, mode: String) {
-    crate::set_manual(&app, mode_from_str(&mode));
-}
-
-#[tauri::command]
-pub fn pause_all(engine: State<'_, SharedEngine>) {
-    engine.lock().unwrap().set_paused(true);
-}
-
-#[tauri::command]
-pub fn resume_all(engine: State<'_, SharedEngine>) {
-    engine.lock().unwrap().set_paused(false);
 }
 
 #[tauri::command]
@@ -113,6 +74,77 @@ pub fn get_diagnostics(
         input_blocked: ie.enabled() && ie.blocked,
         remote_session: sampler.last().remote_session,
     }
+}
+
+/// What Home shows (spec 005 FR-008/FR-010).
+#[derive(Serialize)]
+pub struct Status {
+    pub kind: StatusKind,
+    pub running: bool,
+    /// Seconds to the next move; `None` when stopped or when Move the mouse is off.
+    pub next_move_in_secs: Option<u32>,
+    pub keep_screen_on: bool,
+}
+
+#[tauri::command]
+pub fn get_status(
+    engine: State<'_, SharedEngine>,
+    input: State<'_, SharedInput>,
+    run: State<'_, SharedRun>,
+) -> Status {
+    let settings = *run.lock().unwrap();
+    let (on, effective) = {
+        let e = engine.lock().unwrap();
+        (running::is_running(&e), e.mode())
+    };
+    let (blocked, next_move_in_secs) = {
+        let ie = input.lock().unwrap();
+        (ie.enabled() && ie.blocked, ie.next_move_in_secs())
+    };
+    Status {
+        kind: running::status_kind(on, settings.move_mouse, blocked, effective),
+        running: on,
+        next_move_in_secs,
+        keep_screen_on: settings.keep_screen_on,
+    }
+}
+
+#[tauri::command]
+pub fn start(app: AppHandle) {
+    crate::set_running(&app, true);
+}
+
+#[tauri::command]
+pub fn stop(app: AppHandle) {
+    crate::set_running(&app, false);
+}
+
+/// Test (spec 005 FR-007). On its own thread: a path takes a few hundred milliseconds, and a
+/// synchronous command runs on the main thread, which would freeze the window that long.
+#[tauri::command]
+pub fn test_move(input: State<'_, SharedInput>) {
+    let input = input.inner().clone();
+    std::thread::spawn(move || input.lock().unwrap().move_now(platform::tick_now()));
+}
+
+#[tauri::command]
+pub fn get_run_settings(run: State<'_, SharedRun>) -> RunSettings {
+    *run.lock().unwrap()
+}
+
+#[tauri::command]
+pub fn set_run_settings(app: AppHandle, settings: RunSettings) {
+    crate::set_run_settings(&app, settings);
+}
+
+#[tauri::command]
+pub fn get_autostart(app: AppHandle) -> bool {
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+#[tauri::command]
+pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<bool, String> {
+    crate::set_autostart(&app, enabled)
 }
 
 /// "Why is my PC awake?" (E1). Never `Err` — a refused read comes back as `readable: false`, so
@@ -221,63 +253,6 @@ pub fn delete_profile(
     crate::persist_current(&app);
     crate::rebuild_tray_menu(&app);
     Ok(())
-}
-
-#[tauri::command]
-pub fn is_first_run() -> bool {
-    crate::is_first_run()
-}
-
-/// The first-run answer → one working profile. Never touches `input_enabled` (SC-007).
-#[tauri::command]
-pub fn complete_first_run(
-    app: AppHandle,
-    engine: State<'_, SharedEngine>,
-    stored: State<'_, SharedProfiles>,
-    choice: String,
-) {
-    let mut p = match choice.as_str() {
-        "long_job" => {
-            let mut p = Profile::new("long-job", "Long job");
-            p.rules.push(Rule {
-                id: "long-job-process".into(),
-                name: "Keep running while a process runs".into(),
-                // Disabled and unnamed: the shape is there for the user to fill in, and it holds
-                // nothing until they do.
-                enabled: false,
-                conditions: vec![Condition::ProcessRunning(Vec::new())],
-                mode: WakeMode::KeepRunning,
-            });
-            p
-        }
-        "keep_screen" => {
-            let mut p = Profile::new("keep-screen", "Keep a screen up");
-            p.rules.push(Rule {
-                id: "keep-screen-always".into(),
-                name: "Keep presenting".into(),
-                enabled: true, // they asked for exactly this
-                conditions: Vec::new(),
-                mode: WakeMode::KeepPresenting,
-            });
-            p
-        }
-        _ => Profile::new("default", "Default"),
-    };
-    p.rules.shrink_to_fit();
-    {
-        let mut list = stored.lock().unwrap();
-        profiles::upsert(&mut list, p.clone());
-        engine.lock().unwrap().set_profile(p);
-    }
-    crate::clear_first_run();
-    crate::persist_current(&app);
-    crate::rebuild_tray_menu(&app);
-}
-
-#[tauri::command]
-pub fn set_input_enabled(app: AppHandle, input: State<'_, SharedInput>, enabled: bool) {
-    input.lock().unwrap().set_enabled(enabled);
-    crate::persist_current(&app);
 }
 
 #[tauri::command]

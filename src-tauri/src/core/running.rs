@@ -2,8 +2,6 @@
 //! (constitution I): Start holds a power mode and, unless *Move the mouse* is off, enables the
 //! input engine. Everything that starts or stops — window, tray, hotkey, CLI — goes through here.
 
-#![allow(dead_code)] // wired in Task 4/5
-
 use serde::{Deserialize, Serialize};
 
 use crate::core::engine::Engine;
@@ -57,6 +55,7 @@ pub fn apply(engine: &mut Engine, input: &mut InputEngine, settings: &RunSetting
 
 /// Start or stop with what Start means right now. Calling it with the current state re-applies
 /// changed settings without changing whether it runs.
+#[cfg(test)] // the shell's `set_running` (lib.rs) does this under its own lock order; tests pin the rule
 pub fn set_running(engine: &mut Engine, input: &mut InputEngine, settings: &RunSettings, on: bool) {
     let mode = if on {
         settings.start_mode()
