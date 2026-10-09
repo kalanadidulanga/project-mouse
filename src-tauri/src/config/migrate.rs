@@ -102,7 +102,7 @@ mod tests {
             InputSettings {
                 interval_secs: 200,
                 key: 0,
-                motion: Motion::Line,
+                motion: Motion::RightAndLeft,
                 distance_px: 25,
                 vary_pct: 10
             }

@@ -145,8 +145,10 @@ impl InputEngine {
             return self.injector.virtual_jiggle().map(|()| 0);
         }
         let distance = motion::vary(self.distance_px as u32, self.vary_pct as u32, now) as i32;
-        self.injector
-            .move_path(&motion::path(self.motion, distance), motion::STEP_MS)
+        self.injector.move_path(
+            &motion::path(self.motion, distance, now.rotate_left(16)),
+            motion::Speed::Normal.step_ms(0),
+        )
     }
 
     /// One move, right now: the scheduled one, or Test (spec 005 FR-007).

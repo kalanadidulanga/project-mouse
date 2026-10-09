@@ -54,14 +54,28 @@ pub fn default_paths(appdata: Option<&Path>, local_appdata: Option<&Path>) -> Ve
     out
 }
 
-/// Move Mouse's `Direction` → the nearest closed motion here, and whether that is exact.
+/// Move Mouse's `Direction` → ours. Every Move Mouse value has an exact match since M8; anything
+/// else becomes a small square, and the report says so.
 fn motion_of(direction: &str) -> (Motion, bool) {
-    match direction {
-        "Square" => (Motion::Square, true),
-        "None" => (Motion::Virtual, true), // Stealth
-        "LeftAndRight" | "RightAndLeft" => (Motion::Line, true),
-        _ => (Motion::Square, false),
-    }
+    let m = match direction {
+        "Square" => Motion::Square,
+        "None" => Motion::Virtual, // Stealth
+        "Random" => Motion::Random,
+        "North" => Motion::North,
+        "NorthEast" => Motion::NorthEast,
+        "East" => Motion::East,
+        "SouthEast" => Motion::SouthEast,
+        "South" => Motion::South,
+        "SouthWest" => Motion::SouthWest,
+        "West" => Motion::West,
+        "NorthWest" => Motion::NorthWest,
+        "UpAndDown" => Motion::UpAndDown,
+        "DownAndUp" => Motion::DownAndUp,
+        "LeftAndRight" => Motion::LeftAndRight,
+        "RightAndLeft" => Motion::RightAndLeft,
+        _ => return (Motion::Square, false),
+    };
+    (m, true)
 }
 
 fn child_text<'a>(node: Node<'a, 'a>, name: &str) -> Option<String> {
@@ -348,7 +362,7 @@ mod tests {
     fn an_unmatched_direction_is_approximated_and_said_so() {
         let xml = KALANA.replace(
             "<Direction>Square</Direction>",
-            "<Direction>NorthEast</Direction>",
+            "<Direction>Spiral</Direction>",
         );
         let r = import(&xml).unwrap();
         assert_eq!(r.input.unwrap().motion, Motion::Square);
@@ -357,6 +371,30 @@ mod tests {
             "{:?}",
             r.report
         );
+    }
+
+    #[test]
+    fn every_move_mouse_direction_maps_exactly() {
+        for d in [
+            "Square",
+            "None",
+            "Random",
+            "North",
+            "NorthEast",
+            "East",
+            "SouthEast",
+            "South",
+            "SouthWest",
+            "West",
+            "NorthWest",
+            "UpAndDown",
+            "DownAndUp",
+            "LeftAndRight",
+            "RightAndLeft",
+        ] {
+            assert!(motion_of(d).1, "{d} should map exactly");
+        }
+        assert_eq!(motion_of("None").0, Motion::Virtual);
     }
 
     #[test]
