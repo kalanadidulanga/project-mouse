@@ -2,7 +2,6 @@
 //! settings, the Run-for deadline, the previous tick's local time and a `Snapshot`. It decides,
 //! and the shell acts. No OS code, so every rule here has a unit test.
 
-#![allow(dead_code)] // wired in Task 7
 use serde::{Deserialize, Serialize};
 
 use crate::core::rule::NotifState;

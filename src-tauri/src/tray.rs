@@ -6,6 +6,7 @@ use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem,
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_autostart::ManagerExt;
 
+use crate::core::autopilot::PauseReason;
 use crate::core::running::StatusKind;
 use crate::{SharedEngine, SharedProfiles};
 
@@ -49,11 +50,17 @@ fn remaining(secs: u64) -> String {
     }
 }
 
+/// `HH:MM` for a minute of the day.
+fn hhmm(m: u16) -> String {
+    format!("{:02}:{:02}", m / 60 % 24, m % 60)
+}
+
 /// The tooltip: what is true now, when the next move is, how long a timed rule has left, and
 /// whether an update is waiting.
 pub fn tooltip(
     kind: StatusKind,
     next_move_secs: Option<u32>,
+    pause: Option<PauseReason>,
     rule_left_secs: Option<u64>,
     update: Option<&str>,
 ) -> String {
@@ -65,7 +72,15 @@ pub fn tooltip(
             None => "Running".to_string(),
         },
         StatusKind::RunningPowerOnly => "Running · keeping the PC awake".to_string(),
-        StatusKind::Paused => "Paused".to_string(),
+        StatusKind::Paused => match pause {
+            Some(PauseReason::Battery) => "Paused · on battery".to_string(),
+            Some(PauseReason::Locked) => "Paused · screen locked".to_string(),
+            Some(PauseReason::Presenting) => "Paused · presenting".to_string(),
+            Some(PauseReason::Blackout { until }) => {
+                format!("Paused · blackout until {}", hhmm(until))
+            }
+            None => "Paused".to_string(),
+        },
         StatusKind::RunningBlocked => "Running · Windows blocked the last move".to_string(),
     };
     let mut s = format!("project-mouse: {state}");
@@ -191,15 +206,45 @@ mod tests {
     #[test]
     fn the_tooltip_says_what_is_true() {
         use StatusKind::*;
-        assert_eq!(tooltip(Stopped, None, None, None), "project-mouse: Stopped");
         assert_eq!(
-            tooltip(Running, Some(42), None, None),
+            tooltip(Stopped, None, None, None, None),
+            "project-mouse: Stopped"
+        );
+        assert_eq!(
+            tooltip(Running, Some(42), None, None, None),
             "project-mouse: Running · next move in 0:42"
         );
-        assert!(tooltip(RunningBlocked, None, None, None).contains("blocked"));
-        assert!(tooltip(RunningPowerOnly, None, None, None).contains("keeping the PC awake"));
-        assert!(tooltip(StoppedButRuleHolds, None, Some(4_000), None).contains("1h 6m"));
-        assert!(tooltip(Stopped, None, None, Some("0.3.0")).ends_with("\nUpdate 0.3.0 available"));
+        assert!(tooltip(RunningBlocked, None, None, None, None).contains("blocked"));
+        assert!(tooltip(RunningPowerOnly, None, None, None, None).contains("keeping the PC awake"));
+        assert!(tooltip(StoppedButRuleHolds, None, None, Some(4_000), None).contains("1h 6m"));
+        assert!(
+            tooltip(Stopped, None, None, None, Some("0.3.0")).ends_with("\nUpdate 0.3.0 available")
+        );
+    }
+
+    #[test]
+    fn a_paused_tooltip_says_why() {
+        use crate::core::autopilot::PauseReason;
+        assert_eq!(
+            tooltip(
+                StatusKind::Paused,
+                None,
+                Some(PauseReason::Battery),
+                None,
+                None
+            ),
+            "project-mouse: Paused · on battery"
+        );
+        assert_eq!(
+            tooltip(
+                StatusKind::Paused,
+                None,
+                Some(PauseReason::Blackout { until: 810 }),
+                None,
+                None
+            ),
+            "project-mouse: Paused · blackout until 13:30"
+        );
     }
 
     /// Windows cuts a tray tooltip at 127 characters.
@@ -213,8 +258,16 @@ mod tests {
             RunningBlocked,
             RunningPowerOnly,
         ] {
-            let t = tooltip(k, Some(3_600), Some(86_399), Some("10.10.10"));
+            let t = tooltip(k, Some(3_600), None, Some(86_399), Some("10.10.10"));
             assert!(t.chars().count() <= 127, "{} chars: {t}", t.chars().count());
         }
+        let t = tooltip(
+            Paused,
+            None,
+            Some(crate::core::autopilot::PauseReason::Blackout { until: 1439 }),
+            Some(86_399),
+            Some("10.10.10"),
+        );
+        assert!(t.chars().count() <= 127, "{} chars: {t}", t.chars().count());
     }
 }

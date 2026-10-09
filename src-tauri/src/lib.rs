@@ -22,7 +22,7 @@ use tauri_plugin_updater::UpdaterExt;
 
 use crate::config::model::Appearance;
 use crate::config::{model::Config, store};
-use crate::core::autopilot::Timetable;
+use crate::core::autopilot::{self, Autopilot, Command, RunFor, Timetable};
 use crate::core::engine::Engine;
 use crate::core::evaluator::soonest_expiry_secs;
 use crate::core::input_engine::{InputEngine, InputSettings};
@@ -70,6 +70,8 @@ pub(crate) type SharedProfiles = Arc<Mutex<Vec<Profile>>>;
 pub(crate) type SharedRun = Arc<Mutex<RunSettings>>;
 /// Schedules and blackouts (spec 006).
 pub(crate) type SharedTimetable = Arc<Mutex<Timetable>>;
+/// Schedule edges and the Run-for deadline (spec 006).
+pub(crate) type SharedAutopilot = Arc<Mutex<Autopilot>>;
 /// Always on top, the taskbar dot, notifications.
 pub(crate) type SharedAppearance = Arc<Mutex<Appearance>>;
 
@@ -195,21 +197,64 @@ fn open_window(app: &tauri::AppHandle) {
     }
 }
 
-/// Every start and stop goes through here (spec 005 FR-003): set the manual mode and bring the
-/// input engine into line, reconcile power now rather than on the next tick (so Stop is
-/// immediate, SC-004), then tell the tray and any open window. Lock order: run → engine → input.
+/// Every start and stop goes through here (spec 005 FR-003). Set the manual mode, overlay
+/// whatever pause applies right now (spec 006 FR-012), and reconcile power at once rather than on
+/// the next tick. Stopping clears a Run-for deadline. Then tell the tray and any open window.
+/// Lock order: run → timetable → autopilot → engine → input, never two at once except the last
+/// pair.
 pub(crate) fn apply_mode(app: &tauri::AppHandle, mode: WakeMode) {
     let settings = *app.state::<SharedRun>().lock().unwrap();
     let snap = app.state::<Arc<Sampler>>().last();
+    let pause = if mode == WakeMode::Off {
+        app.state::<SharedAutopilot>()
+            .lock()
+            .unwrap()
+            .set_deadline(None);
+        None
+    } else {
+        let tt = app.state::<SharedTimetable>();
+        let tt = tt.lock().unwrap();
+        autopilot::pause_reason(&settings, &tt.blackouts, &snap)
+    };
     {
         let engine = app.state::<SharedEngine>();
         let input = app.state::<SharedInput>();
         let mut e = engine.lock().unwrap();
         let mut ie = input.lock().unwrap();
-        running::apply(&mut e, &mut ie, &settings, mode, None);
+        running::apply(&mut e, &mut ie, &settings, mode, pause);
         e.tick(&snap);
     }
     after_change(app);
+}
+
+/// Start, and end by itself after `run_for` (spec 006 FR-007).
+pub(crate) fn start_for(app: &tauri::AppHandle, run_for: RunFor) {
+    set_running(app, true);
+    set_run_for(app, run_for);
+}
+
+/// Change when a running Start ends. Nothing happens while stopped.
+pub(crate) fn set_run_for(app: &tauri::AppHandle, run_for: RunFor) {
+    if !is_running(app) {
+        return;
+    }
+    let snap = app.state::<Arc<Sampler>>().last();
+    let deadline = autopilot::deadline_for(run_for, snap.epoch_secs, snap.minutes);
+    app.state::<SharedAutopilot>()
+        .lock()
+        .unwrap()
+        .set_deadline(deadline);
+    after_change(app);
+}
+
+/// New schedules and blackouts take effect at once and are saved. Returns what was stored.
+pub(crate) fn set_timetable(app: &tauri::AppHandle, t: Timetable) -> Timetable {
+    let t = t.sanitised();
+    *app.state::<SharedTimetable>().lock().unwrap() = t.clone();
+    let mode = app.state::<SharedEngine>().lock().unwrap().manual();
+    apply_mode(app, mode);
+    persist_current(app);
+    t
 }
 
 /// Start or stop, using whatever Start means right now.
@@ -450,12 +495,27 @@ pub fn run() {
         None if run_settings.start_on_launch => run_settings.start_mode(),
         None => WakeMode::Off,
     };
+    let sampler = Arc::new(Sampler::new(
+        platform.processes.clone(),
+        platform.foreground.clone(),
+        platform.power_source.clone(),
+        platform.session.clone(),
+    ));
+    let startup_pause = if initial_mode == WakeMode::Off {
+        None
+    } else {
+        autopilot::pause_reason(
+            &run_settings,
+            &timetable_value.blackouts,
+            &sampler.snapshot(),
+        )
+    };
     running::apply(
         &mut engine,
         &mut input_engine,
         &run_settings,
         initial_mode,
-        None,
+        startup_pause,
     );
 
     let engine: SharedEngine = Arc::new(Mutex::new(engine));
@@ -467,13 +527,8 @@ pub fn run() {
     let run_state: SharedRun = Arc::new(Mutex::new(run_settings));
     let timetable: SharedTimetable = Arc::new(Mutex::new(timetable_value.clone()));
     let appearance: SharedAppearance = Arc::new(Mutex::new(appearance_value));
+    let auto: SharedAutopilot = Arc::new(Mutex::new(Autopilot::default()));
 
-    let sampler = Arc::new(Sampler::new(
-        platform.processes.clone(),
-        platform.foreground.clone(),
-        platform.power_source.clone(),
-        platform.session.clone(),
-    ));
     let inspector = platform.inspector.clone();
 
     tauri::Builder::default()
@@ -504,6 +559,7 @@ pub fn run() {
         .manage(run_state.clone())
         .manage(timetable.clone())
         .manage(appearance.clone())
+        .manage(auto.clone())
         .manage(sampler.clone())
         .manage(inspector)
         .manage(Mutex::new(Persist {
@@ -514,6 +570,9 @@ pub fn run() {
             ipc::get_status,
             ipc::start,
             ipc::stop,
+            ipc::set_run_for,
+            ipc::get_timetable,
+            ipc::set_timetable,
             ipc::test_move,
             ipc::get_run_settings,
             ipc::set_run_settings,
@@ -605,16 +664,36 @@ pub fn run() {
             let sched_engine = engine.clone();
             let sched_input = input_engine.clone();
             let sched_run = run_state.clone();
+            let sched_tt = timetable.clone();
+            let sched_auto = auto.clone();
             let sched_sampler = sampler.clone();
             let sched_app = app.handle().clone();
             std::thread::spawn(move || {
                 let mut last_tip = String::new();
+                let mut last_pause = None;
                 platform::run_tick_loop(1000, 200, move || {
                     if SHUTDOWN.load(Ordering::SeqCst) {
                         return false;
                     }
-                    // Phase 1: reconcile the power engine against desired state.
                     let snap = sched_sampler.snapshot();
+                    // Phase 0 (spec 006): schedules and Run for may start or stop; pauses overlay.
+                    let was_on = running::is_running(&sched_engine.lock().unwrap());
+                    let decision = {
+                        let run = *sched_run.lock().unwrap();
+                        let tt = sched_tt.lock().unwrap().clone();
+                        sched_auto.lock().unwrap().tick(&run, &tt, &snap, was_on)
+                    };
+                    match decision.command {
+                        Some(Command::Start(_)) => set_running(&sched_app, true),
+                        Some(Command::Stop(_)) => set_running(&sched_app, false),
+                        None if decision.pause != last_pause => {
+                            let mode = sched_engine.lock().unwrap().manual();
+                            apply_mode(&sched_app, mode);
+                        }
+                        None => {}
+                    }
+                    last_pause = decision.pause;
+                    // Phase 1: reconcile the power engine against desired state.
                     let (on, effective, remaining) = {
                         let mut e = sched_engine.lock().unwrap();
                         e.tick(&snap);
@@ -624,14 +703,18 @@ pub fn run() {
                             soonest_expiry_secs(e.profile(), &snap),
                         )
                     };
+                    // Phase 2: the input engine (off unless running with moves on and not paused).
                     let (blocked, next) = {
                         let mut ie = sched_input.lock().unwrap();
                         ie.tick(platform::last_input_tick(), platform::tick_now());
                         (ie.enabled() && ie.blocked, ie.next_move_in_secs())
                     };
                     let move_mouse = sched_run.lock().unwrap().move_mouse;
-                    let kind = running::status_kind(on, move_mouse, blocked, effective, false);
-                    let tip = tray::tooltip(kind, next, remaining, update_available().as_deref());
+                    let pause = if on { decision.pause } else { None };
+                    let kind =
+                        running::status_kind(on, move_mouse, blocked, effective, pause.is_some());
+                    let tip =
+                        tray::tooltip(kind, next, pause, remaining, update_available().as_deref());
                     // Pushed only when the text changes. While running that is once a second,
                     // which is also what keeps an open window's countdown live.
                     if tip != last_tip {

@@ -7,6 +7,7 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 use tauri_plugin_autostart::ManagerExt;
 
+use crate::core::autopilot::{self, PauseReason, RunFor, Timetable};
 use crate::core::awake::{self, AwakeReport};
 use crate::core::engine::Engine;
 use crate::core::input_engine::{InputEngine, InputSettings};
@@ -15,12 +16,15 @@ use crate::core::profiles;
 use crate::core::rule::{Profile, Rule};
 use crate::core::running::{self, RunSettings, StatusKind};
 use crate::platform::PowerInspector;
+use crate::sampler::Sampler;
 use crate::{logging, platform};
 
 type SharedEngine = Arc<Mutex<Engine>>;
 type SharedInput = Arc<Mutex<InputEngine>>;
 type SharedProfiles = Arc<Mutex<Vec<Profile>>>;
 type SharedRun = Arc<Mutex<RunSettings>>;
+type SharedTimetable = Arc<Mutex<Timetable>>;
+type SharedAutopilot = Arc<Mutex<crate::core::autopilot::Autopilot>>;
 type SharedInspector = Arc<dyn PowerInspector>;
 
 fn mode_str(m: WakeMode) -> &'static str {
@@ -84,6 +88,12 @@ pub struct Status {
     /// Seconds to the next move; `None` when stopped or when Move the mouse is off.
     pub next_move_in_secs: Option<u32>,
     pub keep_screen_on: bool,
+    /// Why moves are paused, while running and paused (spec 006 FR-014).
+    pub pause: Option<PauseReason>,
+    /// When a Run-for ends (epoch seconds), while running.
+    pub stops_at: Option<u64>,
+    /// Seconds since the last input of any kind (spec 006 FR-018).
+    pub idle_secs: u32,
 }
 
 #[tauri::command]
@@ -91,27 +101,64 @@ pub fn get_status(
     engine: State<'_, SharedEngine>,
     input: State<'_, SharedInput>,
     run: State<'_, SharedRun>,
+    timetable: State<'_, SharedTimetable>,
+    auto: State<'_, SharedAutopilot>,
+    sampler: State<'_, Arc<Sampler>>,
 ) -> Status {
     let settings = *run.lock().unwrap();
+    let snap = sampler.last();
     let (on, effective) = {
         let e = engine.lock().unwrap();
         (running::is_running(&e), e.mode())
     };
-    let (blocked, next_move_in_secs) = {
+    let pause = if on {
+        autopilot::pause_reason(&settings, &timetable.lock().unwrap().blackouts, &snap)
+    } else {
+        None
+    };
+    let (blocked, next_move_in_secs, idle_ms) = {
         let ie = input.lock().unwrap();
-        (ie.enabled() && ie.blocked, ie.next_move_in_secs())
+        (
+            ie.enabled() && ie.blocked,
+            ie.next_move_in_secs(),
+            ie.system_idle_ms,
+        )
+    };
+    let stops_at = if on {
+        auto.lock().unwrap().deadline()
+    } else {
+        None
     };
     Status {
-        kind: running::status_kind(on, settings.move_mouse, blocked, effective, false),
+        kind: running::status_kind(on, settings.move_mouse, blocked, effective, pause.is_some()),
         running: on,
         next_move_in_secs,
         keep_screen_on: settings.keep_screen_on,
+        pause,
+        stops_at,
+        idle_secs: idle_ms / 1000,
     }
 }
 
+/// Start, optionally for a while (spec 006 FR-007). JS sends `{ runFor }`.
 #[tauri::command]
-pub fn start(app: AppHandle) {
-    crate::set_running(&app, true);
+pub fn start(app: AppHandle, run_for: Option<RunFor>) {
+    crate::start_for(&app, run_for.unwrap_or(RunFor::Forever));
+}
+
+#[tauri::command]
+pub fn set_run_for(app: AppHandle, run_for: RunFor) {
+    crate::set_run_for(&app, run_for);
+}
+
+#[tauri::command]
+pub fn get_timetable(timetable: State<'_, SharedTimetable>) -> Timetable {
+    timetable.lock().unwrap().clone()
+}
+
+#[tauri::command]
+pub fn set_timetable(app: AppHandle, timetable: Timetable) -> Timetable {
+    crate::set_timetable(&app, timetable)
 }
 
 #[tauri::command]
