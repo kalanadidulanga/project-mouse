@@ -4,15 +4,18 @@ import Home from "./home";
 import Movement from "./movement";
 import Behaviour from "./behaviour";
 import Advanced from "./advanced";
+import { Schedules, Blackouts } from "./timetable";
 import { Icon, type IconName } from "./icons";
 import "./styles.css";
 
-export type Page = "home" | "movement" | "behaviour" | "advanced";
+export type Page = "home" | "movement" | "behaviour" | "schedules" | "blackouts" | "advanced";
 
 const PAGES: [Page, string, IconName][] = [
   ["home", "Home", "home"],
   ["movement", "Movement", "movement"],
   ["behaviour", "Behaviour", "behaviour"],
+  ["schedules", "Schedules", "schedules"],
+  ["blackouts", "Blackouts", "blackouts"],
   ["advanced", "Advanced", "about"],
 ];
 
@@ -39,6 +42,10 @@ export default function App() {
           <Movement />
         ) : page === "behaviour" ? (
           <Behaviour />
+        ) : page === "schedules" ? (
+          <Schedules />
+        ) : page === "blackouts" ? (
+          <Blackouts />
         ) : page === "advanced" ? (
           <Advanced />
         ) : (
