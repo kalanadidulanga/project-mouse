@@ -40,7 +40,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: "project-mouse v__VERSION__"
-          releaseBody: "Moves your mouse a few pixels when your PC has had no input for a while, and keeps the PC awake while it runs. What changed: [CHANGELOG.md](https://github.com/kalanadidulanga/project-mouse/blob/main/CHANGELOG.md). Code signing policy: [README](https://github.com/kalanadidulanga/project-mouse#code-signing-policy)."
+          releaseBody: "Moves your mouse a few pixels when your PC has had no input for a while, and keeps the PC awake while it runs. What changed: [CHANGELOG.md](https://github.com/kalanadidulanga/project-mouse/blob/main/CHANGELOG.md). Code signing: free code signing provided by SignPath.io, certificate by SignPath Foundation ([code signing policy](https://github.com/kalanadidulanga/project-mouse#code-signing-policy))."
           releaseDraft: true # review before it reaches users
           prerelease: false
 
