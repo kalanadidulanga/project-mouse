@@ -9,6 +9,7 @@
   --text-2: #5c5c5c;
   --border: #e2e2e2;
   --accent: #0067c0;
+  --on-accent: #ffffff;
   --active: #0f7b0f;
   --error: #c42b1c;
   --radius: 4px;
@@ -24,6 +25,7 @@
     --text-2: #a6a6a6;
     --border: #3a3a3a;
     --accent: #4cc2ff;
+    --on-accent: #000000;
     --active: #6ccb5f;
     --error: #ff99a4;
   }
@@ -79,6 +81,7 @@ body {
 /* ── controls ── */
 .btn {
   all: unset;
+  box-sizing: border-box;
   padding: 6px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -88,7 +91,7 @@ body {
 }
 .btn:hover { border-color: var(--accent); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 
 /* toggle */
 .switch { display: inline-flex; align-items: center; gap: 8px; cursor: default; margin-top: 0; }

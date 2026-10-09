@@ -18,7 +18,8 @@
         "title": "project-mouse",
         "width": 640,
         "height": 480,
-        "resizable": false
+        "resizable": false,
+        "maximizable": false
       }
     ],
     "security": {
