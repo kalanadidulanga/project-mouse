@@ -241,17 +241,18 @@ pub fn set_input_settings(
     applied
 }
 
-/// Import a Move Mouse `Settings.xml` → the active profile and movement. Returns the report.
+/// Import a Move Mouse `Settings.xml` onto the Movement, Behaviour, Schedules and Blackouts
+/// tabs, keeping the active profile. Returns the report.
 #[tauri::command]
 pub fn import_move_mouse(
     app: AppHandle,
-    engine: State<'_, SharedEngine>,
     input: State<'_, SharedInput>,
     run: State<'_, SharedRun>,
+    timetable: State<'_, SharedTimetable>,
     path: String,
 ) -> Result<Vec<String>, String> {
     use crate::config::import_movemouse as mm;
-    // Empty → look where Move Mouse keeps it.
+    // Empty -> look where Move Mouse keeps it.
     let path = match mm::clean_path(&path) {
         Some(p) => p,
         None => mm::find_settings_xml().ok_or(
@@ -260,18 +261,22 @@ pub fn import_move_mouse(
     };
     let xml = std::fs::read_to_string(&path)
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-    let imported = crate::config::import_movemouse::import(&xml)?;
-    engine.lock().unwrap().set_profile(imported.profile);
+    let imported = mm::import(&xml)?;
     if let Some(s) = imported.input {
         input.lock().unwrap().set_settings(s);
-        let settings = RunSettings {
-            move_mouse: true,
-            ..*run.lock().unwrap()
-        };
-        crate::set_run_settings(&app, settings); // re-applies and saves
-    } else {
-        crate::persist_current(&app);
     }
+    let mut t = timetable.lock().unwrap().clone();
+    t.schedules.extend(imported.schedules);
+    t.blackouts.extend(imported.blackouts);
+    crate::set_timetable(&app, t);
+    let mut settings = *run.lock().unwrap();
+    settings.pause_on_battery = imported
+        .pause_on_battery
+        .unwrap_or(settings.pause_on_battery);
+    settings.pause_when_locked = imported
+        .pause_when_locked
+        .unwrap_or(settings.pause_when_locked);
+    crate::set_run_settings(&app, settings); // re-applies, saves and tells open tabs
     Ok(imported.report)
 }
 

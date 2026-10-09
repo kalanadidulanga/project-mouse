@@ -1,18 +1,19 @@
-//! Import a Move Mouse `Settings.xml` → our rules (MOVE-MOUSE.md §7). The report is part of the
-//! feature: state what was imported, approximated, and dropped. Move Mouse's cursor action becomes Home's
-//! movement (spec 005). Start now does what Move Mouse did, plus the power request it never
-//! had.
+//! Import a Move Mouse `Settings.xml` onto the M8 tabs (MOVE-MOUSE.md §7): movement, behaviour,
+//! schedules and blackouts. The report is part of the feature: state what was imported,
+//! approximated, and dropped. It never touches profiles or rules.
 
 use roxmltree::{Document, Node};
 use std::path::{Path, PathBuf};
 
+use crate::core::autopilot::{Blackout, Schedule, ScheduleAction};
 use crate::core::input_engine::InputSettings;
-use crate::core::modes::WakeMode;
 use crate::core::motion::Motion;
-use crate::core::rule::{Condition, Profile, Rule};
 
 pub struct Imported {
-    pub profile: Profile,
+    pub pause_on_battery: Option<bool>,
+    pub pause_when_locked: Option<bool>,
+    pub blackouts: Vec<Blackout>,
+    pub schedules: Vec<Schedule>,
     /// Move Mouse's cursor action as Home's movement, or `None` if it had no enabled one, in
     /// which case the current movement settings are left alone.
     pub input: Option<InputSettings>,
@@ -135,6 +136,27 @@ fn days_of(node: Node) -> [bool; 7] {
     days
 }
 
+/// A Move Mouse time of day (`PT9H30M`, or `09:30:00`) as a minute of the day.
+fn minute_of_day(s: &str) -> Option<u16> {
+    let m = xs_duration_minutes(s).or_else(|| {
+        let mut p = s.trim().split(':');
+        let (h, m): (u32, u32) = (p.next()?.parse().ok()?, p.next()?.parse().ok()?);
+        Some(h * 60 + m)
+    })?;
+    Some((m % 1440) as u16)
+}
+
+fn enabled(node: Node) -> bool {
+    child_text(node, "IsEnabled").is_none_or(|v| v.eq_ignore_ascii_case("true"))
+}
+
+fn named<'a>(root: Node<'a, 'a>, name: &'a str) -> impl Iterator<Item = Node<'a, 'a>> {
+    root.descendants()
+        .filter(move |n| n.is_element() && n.tag_name().name() == name)
+}
+
+/// Map a `Settings.xml` onto the M8 settings. Nothing here touches profiles or rules: the
+/// caller keeps the active profile and applies each part where its tab keeps it.
 pub fn import(xml: &str) -> Result<Imported, String> {
     let doc = Document::parse(xml).map_err(|e| format!("invalid XML: {e}"))?;
     let root = doc.root_element();
@@ -143,92 +165,136 @@ pub fn import(xml: &str) -> Result<Imported, String> {
     }
 
     let mut report = Vec::new();
-    let mut conditions = Vec::new();
 
-    if desc_flag(root, "PauseOnBattery").unwrap_or(false) {
-        conditions.push(Condition::OnACPower);
-        report.push("Pause on battery → hold only while on AC power.".into());
+    let pause_on_battery = desc_flag(root, "PauseOnBattery");
+    if let Some(v) = pause_on_battery {
+        report.push(format!(
+            "Behaviour: pause on battery is {}.",
+            if v { "on" } else { "off" }
+        ));
     }
-    match desc_flag(root, "ActiveWhenLocked") {
-        Some(false) | None => {
-            conditions.push(Condition::SessionUnlocked);
-            report.push("Continue when locked = off → hold only while unlocked.".into());
-        }
-        Some(true) => report.push("Continue when locked = on → holds through a lock.".into()),
+    let pause_when_locked = desc_flag(root, "ActiveWhenLocked").map(|active| !active);
+    if let Some(v) = pause_when_locked {
+        report.push(format!(
+            "Behaviour: pause when locked is {}.",
+            if v { "on" } else { "off" }
+        ));
     }
 
-    // Blackouts → windows we must NOT hold in.
-    for bo in root
-        .descendants()
-        .filter(|n| n.tag_name().name() == "Blackout")
-    {
+    let mut blackouts = Vec::new();
+    for bo in named(root, "Blackout").filter(|n| enabled(*n)) {
         let (Some(start), Some(dur)) = (
-            child_text(bo, "Time")
-                .as_deref()
-                .and_then(xs_duration_minutes),
+            child_text(bo, "Time").as_deref().and_then(minute_of_day),
             child_text(bo, "Duration")
                 .as_deref()
                 .and_then(xs_duration_minutes),
         ) else {
-            report.push("Skipped a blackout with an unparseable Time/Duration.".into());
+            report.push("Blackouts: skipped one with an unparseable Time or Duration.".into());
             continue;
         };
-        let from = (start % 1440) as u16;
-        let to = ((start + dur) % 1440) as u16;
-        conditions.push(Condition::Not(Box::new(Condition::TimeWindow {
+        blackouts.push(Blackout {
             days: days_of(bo),
-            from,
-            to,
-        })));
+            from: start,
+            to: ((start as u32 + dur) % 1440) as u16,
+            enabled: true,
+        });
+    }
+    if !blackouts.is_empty() {
         report.push(format!(
-            "Blackout {from}..{to} (min-of-day) → do not hold during it."
+            "Blackouts: added {} to the Blackouts tab.",
+            blackouts.len()
+        ));
+    }
+
+    let mut schedules = Vec::new();
+    let mut jitter = false;
+    for sc in named(root, "SimpleSchedule") {
+        let action = match child_text(sc, "Action").as_deref() {
+            Some("Start") => ScheduleAction::Start,
+            Some("Stop") => ScheduleAction::Stop,
+            other => {
+                report.push(format!(
+                    "Schedules: skipped a '{}' schedule, only Start and Stop are supported.",
+                    other.unwrap_or("unknown")
+                ));
+                continue;
+            }
+        };
+        let Some(at) = child_text(sc, "Time").as_deref().and_then(minute_of_day) else {
+            report.push("Schedules: skipped one with an unparseable Time.".into());
+            continue;
+        };
+        jitter |= child_text(sc, "Delay")
+            .and_then(|d| d.parse::<u32>().ok())
+            .is_some_and(|d| d > 0);
+        schedules.push(Schedule {
+            days: days_of(sc),
+            at,
+            action,
+            enabled: enabled(sc),
+        });
+    }
+    if !schedules.is_empty() {
+        report.push(format!(
+            "Schedules: added {} to the Schedules tab.",
+            schedules.len()
+        ));
+    }
+    if jitter {
+        report.push("Schedules: the random delay was dropped, they fire on the minute.".into());
+    }
+    let cron = named(root, "AdvancedSchedule").count();
+    if cron > 0 {
+        report.push(format!(
+            "Schedules: {cron} cron schedule(s) were not imported. Add them as Start or Stop times."
         ));
     }
 
     // Things we deliberately don't auto-translate, report them rather than guess.
-    let n_actions = root
-        .descendants()
-        .filter(|n| n.tag_name().name() == "Actions")
+    let n_actions = named(root, "Actions")
         .flat_map(|a| a.children().filter(Node::is_element))
         .count();
     // The first enabled cursor action becomes Home's movement (spec 005).
-    let cursor = root.descendants().find(|n| {
-        n.tag_name().name() == "MoveMouseCursorAction"
-            && child_text(*n, "IsEnabled").is_none_or(|v| v.eq_ignore_ascii_case("true"))
-    });
+    let cursor = named(root, "MoveMouseCursorAction").find(|n| enabled(*n));
     let input = cursor.map(|a| {
         let direction = child_text(a, "Direction").unwrap_or_else(|| "Square".into());
         let (motion, exact) = motion_of(&direction);
-        let distance_px = child_text(a, "Distance")
-            .and_then(|d| d.parse().ok())
-            .unwrap_or(10);
-        let interval_secs = child_text(root, "LowerInterval")
-            .and_then(|t| t.parse().ok())
-            .unwrap_or(30);
+        let num = |n: &str| child_text(a, n).and_then(|d| d.parse::<u32>().ok());
+        let secs = |n: &str| child_text(root, n).and_then(|d| d.parse::<u32>().ok());
+        let distance_px = num("Distance").unwrap_or(10).clamp(1, 500) as u16;
+        let interval_secs = secs("LowerInterval").unwrap_or(30).clamp(5, 3_600);
+        let interval_random = desc_flag(root, "RandomInterval").unwrap_or(false);
+        let distance_random = child_flag(a, "Random");
         report.push(format!(
-            "Mouse movement → Home: {direction}, {distance_px} px, after {interval_secs} s with no \
-             input. Press Start to use it."
+            "Movement: {direction}, {distance_px} px, after {interval_secs} s with no input. \
+             Press Start to use it."
         ));
         if !exact {
             report.push(format!(
-                "'{direction}' has no exact match here, so it became a small square."
+                "Movement: '{direction}' has no exact match here, so it became a small square."
             ));
         }
-        if desc_flag(root, "RandomInterval").unwrap_or(false) {
-            report.push(
-                "A random interval was not carried over. Settings → Vary does the same job.".into(),
-            );
+        if interval_random || distance_random {
+            report.push("Movement: the random ranges were carried over.".into());
         }
+        let d = InputSettings::default();
         InputSettings {
             interval_secs,
+            interval_random,
+            interval_max_secs: secs("UpperInterval")
+                .map_or(d.interval_max_secs, |v| v.clamp(5, 3_600)),
             motion,
             distance_px,
-            ..InputSettings::default()
+            distance_random,
+            distance_max_px: num("UpperDistance")
+                .map_or(d.distance_max_px, |v| v.clamp(1, 500) as u16),
+            ..d
         }
     });
     if input.is_none() {
         report.push(
-            "No enabled cursor action found, so Home's movement settings are unchanged.".into(),
+            "Movement: no enabled cursor action found, so the movement settings are unchanged."
+                .into(),
         );
     }
     let others = n_actions - usize::from(cursor.is_some());
@@ -238,31 +304,12 @@ pub fn import(xml: &str) -> Result<Imported, String> {
              have no equivalent here."
         ));
     }
-    if root
-        .descendants()
-        .any(|n| n.tag_name().name() == "SimpleSchedule")
-        || root
-            .descendants()
-            .any(|n| n.tag_name().name() == "AdvancedSchedule")
-    {
-        report.push(
-            "Schedules were not auto-mapped (Move Mouse uses Start/Stop events). Recreate the \
-             window with a weekly schedule rule if you need it."
-                .into(),
-        );
-    }
-
-    let mut profile = Profile::new("imported", "Imported from Move Mouse");
-    profile.rules.push(Rule {
-        id: "imported-mm".into(),
-        name: "Imported from Move Mouse".into(),
-        enabled: false, // disabled by default (UI-UX §3), the user turns it on after reviewing
-        conditions,
-        mode: WakeMode::KeepRunning,
-    });
 
     Ok(Imported {
-        profile,
+        pause_on_battery,
+        pause_when_locked,
+        blackouts,
+        schedules,
         input,
         report,
     })
@@ -290,34 +337,84 @@ mod tests {
     }
 
     #[test]
-    fn maps_battery_and_locked_to_conditions() {
+    fn battery_and_locked_map_onto_run_settings() {
         let xml = r#"<Settings>
             <PauseOnBattery>true</PauseOnBattery>
-            <ActiveWhenLocked>false</ActiveWhenLocked>
+            <ActiveWhenLocked>true</ActiveWhenLocked>
         </Settings>"#;
         let r = import(xml).unwrap();
-        let conds = &r.profile.rules[0].conditions;
-        assert!(conds.contains(&Condition::OnACPower));
-        assert!(conds.contains(&Condition::SessionUnlocked));
-        assert_eq!(r.profile.rules[0].mode, WakeMode::KeepRunning);
-        assert!(!r.profile.rules[0].enabled); // disabled until reviewed
+        assert_eq!(r.pause_on_battery, Some(true));
+        assert_eq!(r.pause_when_locked, Some(false));
+        let r = import("<Settings/>").unwrap();
+        assert_eq!((r.pause_on_battery, r.pause_when_locked), (None, None));
     }
 
     #[test]
-    fn blackout_becomes_negated_window() {
-        // 18:00 for 2h → 18:00..20:00 blackout on weekdays.
-        let xml = r#"<Settings><Blackouts><Blackout>
-            <Time>PT18H</Time><Duration>PT2H</Duration>
-            <Monday>true</Monday><Tuesday>true</Tuesday><Wednesday>true</Wednesday>
-            <Thursday>true</Thursday><Friday>true</Friday>
-            <Saturday>false</Saturday><Sunday>false</Sunday>
-        </Blackout></Blackouts></Settings>"#;
+    fn a_blackout_is_added_and_a_disabled_or_bad_one_is_not() {
+        let xml = r#"<Settings><Blackouts>
+          <Blackout><Time>PT18H</Time><Duration>PT2H</Duration>
+            <Monday>true</Monday><Tuesday>false</Tuesday><Wednesday>false</Wednesday>
+            <Thursday>false</Thursday><Friday>false</Friday><Saturday>false</Saturday>
+            <Sunday>false</Sunday></Blackout>
+          <Blackout><IsEnabled>false</IsEnabled><Time>PT1H</Time><Duration>PT1H</Duration></Blackout>
+          <Blackout><Time>soon</Time><Duration>PT1H</Duration></Blackout>
+        </Blackouts></Settings>"#;
         let r = import(xml).unwrap();
-        let has_neg = r.profile.rules[0].conditions.iter().any(|c| {
-            matches!(c, Condition::Not(inner)
-                if matches!(**inner, Condition::TimeWindow { from, to, .. } if from == 18 * 60 && to == 20 * 60))
-        });
-        assert!(has_neg, "expected Not(TimeWindow 1080..1200)");
+        assert_eq!(r.blackouts.len(), 1);
+        let b = &r.blackouts[0];
+        assert_eq!((b.from, b.to), (1080, 1200));
+        assert_eq!(b.days, [true, false, false, false, false, false, false]);
+        assert!(r.report.iter().any(|l| l.contains("unparseable")));
+    }
+
+    #[test]
+    fn schedules_map_start_and_stop_and_report_the_rest() {
+        let xml = r#"<Settings><Schedules>
+          <SimpleSchedule><Action>Start</Action><Time>PT9H</Time><Delay>30</Delay>
+            <Monday>true</Monday><IsEnabled>true</IsEnabled></SimpleSchedule>
+          <SimpleSchedule><Action>Stop</Action><Time>PT17H30M</Time><IsEnabled>false</IsEnabled></SimpleSchedule>
+          <SimpleSchedule><Action>Pause</Action><Time>PT1H</Time></SimpleSchedule>
+          <AdvancedSchedule><Action>Start</Action><Schedule>0 0 9 * * ?</Schedule></AdvancedSchedule>
+        </Schedules></Settings>"#;
+        let r = import(xml).unwrap();
+        assert_eq!(r.schedules.len(), 2);
+        assert_eq!(
+            (
+                r.schedules[0].at,
+                r.schedules[0].action,
+                r.schedules[0].enabled
+            ),
+            (540, ScheduleAction::Start, true)
+        );
+        assert_eq!(
+            (
+                r.schedules[1].at,
+                r.schedules[1].action,
+                r.schedules[1].enabled
+            ),
+            (1050, ScheduleAction::Stop, false)
+        );
+        let text = r.report.join(
+            "
+",
+        );
+        assert!(text.contains("random delay was dropped"), "{text}");
+        assert!(text.contains("'Pause'"), "{text}");
+        assert!(text.contains("cron"), "{text}");
+        assert!(!text.contains("Settings -> Vary") && !text.contains("weekly schedule rule"));
+    }
+
+    #[test]
+    fn random_ranges_are_carried_over_and_clamped() {
+        let xml = r#"<Settings>
+          <Actions><MoveMouseCursorAction><Direction>Square</Direction><Distance>10</Distance>
+            <Random>true</Random><UpperDistance>9999</UpperDistance></MoveMouseCursorAction></Actions>
+          <LowerInterval>1</LowerInterval><UpperInterval>99999</UpperInterval>
+          <RandomInterval>true</RandomInterval></Settings>"#;
+        let i = import(xml).unwrap().input.unwrap();
+        assert!(i.interval_random && i.distance_random);
+        assert_eq!((i.interval_secs, i.interval_max_secs), (5, 3_600));
+        assert_eq!((i.distance_px, i.distance_max_px), (10, 500));
     }
 
     #[test]
@@ -335,6 +432,7 @@ mod tests {
             r.input,
             Some(InputSettings {
                 interval_secs: 200,
+                interval_max_secs: 200,
                 motion: Motion::Square,
                 distance_px: 10,
                 ..InputSettings::default()
