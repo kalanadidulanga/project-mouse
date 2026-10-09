@@ -106,6 +106,9 @@ impl InputInjector for NoopInjector {
     fn move_relative(&self, _dx: i32, _dy: i32) -> Result<()> {
         Ok(())
     }
+    fn move_path(&self, _steps: &[(i32, i32)], _step_ms: u32) -> Result<u32> {
+        Ok(0)
+    }
 }
 
 /// Test double: counts injections and records every relative move, so a test can assert the
@@ -138,6 +141,11 @@ impl InputInjector for MockInjector {
         *self.jiggles.lock().unwrap() += 1;
         self.moves.lock().unwrap().push((dx, dy));
         Ok(())
+    }
+    fn move_path(&self, steps: &[(i32, i32)], step_ms: u32) -> Result<u32> {
+        *self.jiggles.lock().unwrap() += 1;
+        self.moves.lock().unwrap().extend_from_slice(steps);
+        Ok(steps.len() as u32 * step_ms)
     }
 }
 

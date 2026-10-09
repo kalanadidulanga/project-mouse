@@ -75,6 +75,10 @@ pub trait InputInjector: Send + Sync {
     /// request rather than a promise — `core::motion` closes its cycles by construction instead
     /// of relying on the distance coming back exactly.
     fn move_relative(&self, dx: i32, dy: i32) -> Result<()>;
+    /// Trace a whole path of relative moves `step_ms` apart, and return how long it took in ms.
+    /// The engine treats that whole span as its own input (spec 005 FR-006).
+    #[allow(dead_code)] // Used in Task 2
+    fn move_path(&self, steps: &[(i32, i32)], step_ms: u32) -> Result<u32>;
 }
 
 // ponytail: autostart is handled by the cross-platform `tauri-plugin-autostart` (HKCU\Run on

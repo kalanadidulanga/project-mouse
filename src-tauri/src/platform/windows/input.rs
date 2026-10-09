@@ -74,6 +74,17 @@ impl InputInjector for WindowsInputInjector {
         };
         send(&[key(KEYBD_EVENT_FLAGS(0)), key(KEYEVENTF_KEYUP)])
     }
+
+    fn move_path(&self, steps: &[(i32, i32)], step_ms: u32) -> Result<u32> {
+        let started = std::time::Instant::now();
+        for (i, &(dx, dy)) in steps.iter().enumerate() {
+            if i > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(step_ms as u64));
+            }
+            self.move_relative(dx, dy)?;
+        }
+        Ok(started.elapsed().as_millis() as u32)
+    }
 }
 
 fn send(inputs: &[INPUT]) -> Result<()> {

@@ -75,6 +75,40 @@ impl Motion {
     }
 }
 
+/// The most steps one trigger may take. At [`STEP_MS`] apart that is under half a second of
+/// sleeping, which Windows' ~15.6 ms timer can stretch to about 0.6 s.
+#[allow(dead_code)] // Used in Task 2
+pub const MAX_PATH_STEPS: u32 = 40;
+
+/// Milliseconds between the steps of a path.
+#[allow(dead_code)] // Used in Task 2
+pub const STEP_MS: u32 = 10;
+
+/// One trigger's whole closed path (spec 005 FR-005): every leg of the cycle, split into steps
+/// of about 2 px so the cursor glides rather than jumps. Each leg's steps sum exactly to that
+/// leg (the split telescopes), and the legs already sum to zero, so the path ends where it
+/// started. Opposite legs split into mirrored steps, so pointer acceleration treats the way out
+/// and the way back alike. `Virtual` and a zero distance have no path.
+#[allow(dead_code)] // Used in Task 2
+pub fn path(motion: Motion, distance: i32) -> Vec<(i32, i32)> {
+    if motion == Motion::Virtual {
+        return Vec::new();
+    }
+    let legs = motion.steps();
+    let per_leg = (MAX_PATH_STEPS / legs).max(1);
+    let mut out = Vec::with_capacity(MAX_PATH_STEPS as usize);
+    for i in 0..legs {
+        let (dx, dy) = motion.step(i, distance);
+        let len = dx.unsigned_abs().max(dy.unsigned_abs());
+        let n = (len / 2).clamp(1, per_leg) as i32;
+        for k in 0..n {
+            out.push((dx * (k + 1) / n - dx * k / n, dy * (k + 1) / n - dy * k / n));
+        }
+    }
+    out.retain(|&s| s != (0, 0));
+    out
+}
+
 /// Deterministic, tiny, and good enough to stop a value being identical every time. Not for
 /// anything that matters cryptographically, and it is not pretending to be.
 fn xorshift(seed: u32) -> u32 {
@@ -188,6 +222,60 @@ mod tests {
     fn variation_never_returns_zero() {
         for seed in 0..500 {
             assert!(vary(1, 100, seed) >= 1);
+        }
+    }
+
+    fn sum(p: &[(i32, i32)]) -> (i32, i32) {
+        p.iter().fold((0, 0), |(x, y), (dx, dy)| (x + dx, y + dy))
+    }
+
+    /// Spec 005 FR-005: one trigger traces the whole shape and ends where it started.
+    #[test]
+    fn every_path_returns_to_its_origin() {
+        for m in [Motion::Line, Motion::Square, Motion::Circle] {
+            for d in [1, 2, 7, 10, 33, 500] {
+                assert_eq!(sum(&path(m, d)), (0, 0), "{m:?} at {d}px did not close");
+            }
+        }
+    }
+
+    #[test]
+    fn a_path_glides_in_small_steps_and_stays_short() {
+        for m in [Motion::Line, Motion::Square, Motion::Circle] {
+            let p = path(m, 10);
+            assert!(
+                p.len() > m.steps() as usize,
+                "{m:?} jumps instead of gliding: {p:?}"
+            );
+            assert!(p.len() as u32 <= MAX_PATH_STEPS);
+            assert!(path(m, 500).len() as u32 <= MAX_PATH_STEPS);
+        }
+    }
+
+    #[test]
+    fn a_square_path_goes_right_down_left_up() {
+        let p = path(Motion::Square, 10);
+        assert_eq!(p.len(), 20);
+        assert!(p[..5].iter().all(|&s| s == (2, 0)));
+        assert!(p[5..10].iter().all(|&s| s == (0, 2)));
+        assert!(p[10..15].iter().all(|&s| s == (-2, 0)));
+        assert!(p[15..].iter().all(|&s| s == (0, -2)));
+    }
+
+    /// Pointer acceleration sees the same speeds on the way out and the way back.
+    #[test]
+    fn opposite_legs_use_mirrored_steps() {
+        let p = path(Motion::Line, 7);
+        let (out, back) = p.split_at(p.len() / 2);
+        let mirrored: Vec<_> = out.iter().map(|&(x, y)| (-x, -y)).collect();
+        assert_eq!(back, &mirrored[..]);
+    }
+
+    #[test]
+    fn invisible_and_zero_distance_have_no_path() {
+        assert!(path(Motion::Virtual, 500).is_empty());
+        for m in [Motion::Line, Motion::Square, Motion::Circle] {
+            assert!(path(m, 0).is_empty(), "{m:?} moved with distance 0");
         }
     }
 }
