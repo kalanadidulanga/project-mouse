@@ -83,7 +83,7 @@ A list of "these days, at this time, Start (or Stop)". Each entry fires at its m
   - Home shows *Stops at HH:MM*.
 - **FR-008 Pause on battery** is off by default. It pauses moves and keep-awake.
 - **FR-009 Pause when locked** is on by default. It pauses moves only.
-- **FR-010 Blackouts** are a list of `{days[7], from, to, enabled}`. They pause moves only and may cross midnight.
+- **FR-010 Blackouts** are a list of `{days[7], from, to, enabled}`. They pause moves only and may cross midnight. A blackout whose from and to are the same is kept and flagged with a warning on its row, not refused.
 - **FR-011 Schedules** are a list of `{days[7], time, action: Start|Stop, enabled}`, with the edge semantics above.
 - **FR-012 A pause is an overlay, not a state change.** The running state (manual mode ≠ Off) does not change. `core::running` enforces both invariants:
   - input on ⇔ running ∧ move_mouse ∧ ¬paused

@@ -11,7 +11,7 @@ the window and it keeps running in the tray, next to the clock. **Stop**, the tr
 Ctrl+Alt+K turns it off.
 
 It does not change your power plan, and it releases everything on exit. Monitoring software can
-detect simulated input. With *Move the mouse* off (Settings) it sends no input at all, and then
+detect simulated input. With *Move the mouse* off (Behaviour) it sends no input at all, and then
 it cannot defeat a screen lock or a chat presence indicator.
 
 *(`project-mouse` is a working title, see [PRODUCT.md §9](docs/PRODUCT.md#9-the-name).)*

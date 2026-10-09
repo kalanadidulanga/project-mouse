@@ -179,6 +179,7 @@ function ImportMoveMouse() {
       <div style={{ display: "flex", gap: 8 }}>
         <input
           className="btn"
+          aria-label="Path to Move Mouse Settings.xml"
           style={{ flex: 1 }}
           placeholder="Leave empty to find it, or paste the path to Settings.xml"
           value={path}
@@ -221,7 +222,7 @@ function LegacyRules() {
         <div className="entry" key={r.id}>
           <span className="grow">{r.name}</span>
           <label className="note">
-            <input type="checkbox" checked={r.enabled} onChange={(e) => invoke("set_rule_enabled", { id: r.id, enabled: e.target.checked }).then(load)} /> on
+            <input type="checkbox" aria-label={`Enabled, ${r.name}`} checked={r.enabled} onChange={(e) => invoke("set_rule_enabled", { id: r.id, enabled: e.target.checked }).then(load)} /> on
           </label>
           <button className="btn icon-btn" aria-label={`Delete ${r.name}`} onClick={() => invoke("delete_rule", { id: r.id }).then(load)}>
             ✕

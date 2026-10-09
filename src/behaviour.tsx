@@ -68,7 +68,7 @@ export default function Behaviour() {
 
       <section className="section">
         <h2>Pause automatically</h2>
-        <SettingRow title="On battery" hint="Lets the PC sleep to save the battery. Carries on when you plug in.">
+        <SettingRow title="On battery" hint="On battery it stops the mouse moves and stops keeping the PC awake, so the PC can sleep as normal. It carries on when you plug in.">
           <Switch label="Pause on battery" on={run.pause_on_battery} onChange={(v) => saveRun({ ...run, pause_on_battery: v })} />
         </SettingRow>
         <SettingRow title="When the screen is locked" hint="Moves stop and the PC stays awake. Carries on when you unlock.">

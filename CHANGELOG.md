@@ -3,7 +3,7 @@
 ## Unreleased
 
 project-mouse is now something you can see. v0.2.1 opened no window on a normal launch, so all
-you got was a tray icon (often hidden), and moving the mouse was a switch buried in Settings.
+you got was a tray icon (often hidden), and moving the mouse was a switch buried in a settings page.
 
 ### Added (Move Mouse parity)
 
@@ -25,34 +25,50 @@ you got was a tray icon (often hidden), and moving the mouse was a switch buried
   the app again brings the window back. Autostart still starts in the tray.
 - **Start moves the mouse and keeps the PC awake**, together. The mouse moves once the PC has
   had no input for the number of seconds you set (60 by default), so it never moves while you
-  are working. *Move the mouse* and *Keep the screen on* are in Settings.
+  are working. *Move the mouse* and *Keep the screen on* are in Behaviour.
 - **Each move traces a whole small square** (or a line or a circle) and comes back to where it
   started. Before, one 10 px side moved per interval, which looked like nothing. **Test**
   shows it straight away.
 - **The tray icon is grey while stopped**, the menu is Start/Stop, and the tooltip shows the
   countdown. Ctrl+Alt+K starts and stops it.
-- The old Status, Rules and Activity pages, and the rest of Settings, are under **Advanced**,
-  unchanged. Off / Keep running / Keep presenting and Pause are gone, because Start/Stop does
+- The old Status, Rules and Activity pages, and the rest of Settings, are under **About >
+  Troubleshooting**, unchanged. Off / Keep running / Keep presenting and Pause are gone, because Start/Stop does
   their job. The first-run question is gone too.
 - **Import from Move Mouse** now brings your movement settings across, and finds
-  `Settings.xml` by itself (including the Store version's).
+  `Settings.xml` by itself (including the Store version's). It keeps your profile and maps
+  onto the tabs: Movement (interval, distance, direction and their random ranges), Behaviour
+  (battery and locked pauses), Schedules (Start and Stop times) and Blackouts.
 
 ### Fixed
 
+- A schedule's Start now fires if project-mouse opens after that time today. Opening the app
+  never stops anything.
+- A Run for ending in the same minute as a schedule no longer drops the schedule.
+- A 1 px move on a diagonal, circle or random direction moves instead of reporting that
+  Windows blocked it.
+- On several monitors of different sizes the cursor now stays on its own monitor and comes back
+  exactly where it began. It also returns if a move fails part way.
+- The first second after launch no longer sees a false midnight, which could end a Run for or
+  start a Monday blackout early.
+- Old rules that keep the screen on are no longer folded into the apps list.
+- Apps added without an extension get `.exe`. Pauses that only stop moves are not shown as
+  Paused when *Move the mouse* is off.
 - A Windows-blocked move is retried once per interval instead of every second.
 - A config file that is valid JSON but not an object no longer crashes the app at launch. It is
   treated as corrupt and kept.
 
 ### Notes
 
-- Config moves to v4. Old app rules become the apps list; any other old rule is listed under
-  About, Troubleshooting.
-- The Advanced tab, profiles and the "keep awake for a while" timer are gone from the window.
 - Config moves to v3 on first launch. If you never switched input on in v0.2.x, your movement
   settings start fresh at the new defaults. Whether it was running is no longer remembered:
   use *Start automatically when project-mouse opens*.
+- Config moves to v4. Old app rules become the apps list; any other old rule is listed under
+  About, Troubleshooting.
+- The Advanced tab, profiles and the "keep awake for a while" timer are gone from the window.
+- `npm run test:e2e` builds the app and drives the real window with Playwright (a dev
+  dependency). It opens the app for about ten seconds.
 - `--keep running|presenting` and Ctrl+Alt+K now also move the mouse, unless *Move the mouse* is
-  off in Settings. That includes v0.2.x users who never switched input on, because migration
+  off in Behaviour. That includes v0.2.x users who never switched input on, because migration
   turns *Move the mouse* on.
 
 ## v0.2.1

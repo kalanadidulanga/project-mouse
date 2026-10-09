@@ -86,7 +86,7 @@ export default function Movement() {
               px
             </SettingRow>
             <SettingRow title="Random distance">
-              <Switch label="Random distance" on={s.distance_random} onChange={(v) => save({ ...s, distance_random: v })} />
+              <Switch label="Random distance" on={s.distance_random} onChange={(v) => save({ ...s, distance_random: v, distance_max_px: v && s.distance_max_px <= s.distance_px ? Math.min(s.distance_px * 2, 500) : s.distance_max_px })} />
             </SettingRow>
             <SettingRow title="Speed" hint="How fast the cursor travels the path.">
               <select className="btn" aria-label="Speed" value={s.speed} onChange={(e) => save({ ...s, speed: e.target.value as Speed })}>
@@ -127,7 +127,7 @@ export default function Movement() {
           s
         </SettingRow>
         <SettingRow title="Random wait" hint="So the moves don't line up with other things on a timer.">
-          <Switch label="Random wait" on={s.interval_random} onChange={(v) => save({ ...s, interval_random: v })} />
+          <Switch label="Random wait" on={s.interval_random} onChange={(v) => save({ ...s, interval_random: v, interval_max_secs: v && s.interval_max_secs <= s.interval_secs ? Math.min(s.interval_secs * 2, 3_600) : s.interval_max_secs })} />
         </SettingRow>
       </section>
 

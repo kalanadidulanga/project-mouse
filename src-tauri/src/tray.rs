@@ -66,7 +66,9 @@ pub fn tooltip(
 ) -> String {
     let state = match kind {
         StatusKind::Stopped => "Stopped".to_string(),
-        StatusKind::StoppedButRuleHolds => "Stopped · a rule is keeping the PC awake".to_string(),
+        StatusKind::StoppedButRuleHolds => {
+            "Stopped · an app or rule is keeping the PC awake".to_string()
+        }
         StatusKind::Running => match next_move_secs {
             Some(n) => format!("Running · next move in {}", countdown(n)),
             None => "Running".to_string(),
