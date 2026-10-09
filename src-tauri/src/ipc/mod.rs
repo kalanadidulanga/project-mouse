@@ -1,7 +1,6 @@
 //! Thin, **synchronous** Tauri commands (keeping tokio dormant, TAURI-V2 §0.2). Each is a wrapper
 //! over `core`; the React UI holds only a projection of state, never the state itself.
 
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
@@ -284,19 +283,13 @@ pub fn import_move_mouse(
     run: State<'_, SharedRun>,
     path: String,
 ) -> Result<Vec<String>, String> {
-    // Empty → look where Move Mouse keeps it. Quotes from Explorer's "Copy as path" are stripped.
-    let path = match path.trim().trim_matches('"') {
-        "" => {
-            let appdata = std::env::var_os("APPDATA").map(PathBuf::from);
-            let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
-            crate::config::import_movemouse::default_paths(appdata.as_deref(), local.as_deref())
-                .into_iter()
-                .find(|p| p.exists())
-                .ok_or(
-                    "Move Mouse's Settings.xml is not in either usual place. Paste its full path.",
-                )?
-        }
-        p => PathBuf::from(p),
+    use crate::config::import_movemouse as mm;
+    // Empty → look where Move Mouse keeps it.
+    let path = match mm::clean_path(&path) {
+        Some(p) => p,
+        None => mm::find_settings_xml().ok_or(
+            "Move Mouse's Settings.xml is not in either usual place. Paste its full path.",
+        )?,
     };
     let xml = std::fs::read_to_string(&path)
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;

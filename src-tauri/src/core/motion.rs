@@ -14,8 +14,9 @@ use serde::{Deserialize, Serialize};
 /// What the injector does on each trigger.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Motion {
-    /// C1 virtual jiggle: resets the idle timer, cursor does not move. The default, and the only
-    /// one that cannot embarrass someone mid-presentation.
+    /// C1 virtual jiggle: resets the idle timer, cursor does not move. The only one that cannot
+    /// embarrass someone mid-presentation. Not the default for new settings (`InputSettings`
+    /// uses Square); this `Default` only fills a missing `motion` field in old configs.
     #[default]
     Virtual,
     /// Back and forth along one axis. Two steps.

@@ -22,8 +22,9 @@ impl Icons {
     }
 }
 
-/// The stopped icon: the same mark, desaturated and dimmed. The shape carries the meaning and the
-/// tooltip says it in words, so the state never rests on colour alone (UI-UX §7).
+/// The stopped icon: the same mark, desaturated and dimmed. Both icons have the same shape, so
+/// only saturation and alpha differ; the tooltip says the state in words, so it never rests on
+/// colour alone (UI-UX §7).
 pub fn greyscale(rgba: &[u8]) -> Vec<u8> {
     rgba.as_chunks::<4>()
         .0

@@ -19,6 +19,22 @@ pub struct Imported {
     pub report: Vec<String>,
 }
 
+/// A path typed or pasted by the user (quotes from Explorer's "Copy as path" stripped, whitespace
+/// trimmed inside them too), or `None` when empty.
+pub fn clean_path(input: &str) -> Option<PathBuf> {
+    let p = input.trim().trim_matches('"').trim();
+    (!p.is_empty()).then(|| PathBuf::from(p))
+}
+
+/// The first of Move Mouse's usual `Settings.xml` places that exists, read from the environment.
+pub fn find_settings_xml() -> Option<PathBuf> {
+    let appdata = std::env::var_os("APPDATA").map(PathBuf::from);
+    let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    default_paths(appdata.as_deref(), local.as_deref())
+        .into_iter()
+        .find(|p| p.exists())
+}
+
 /// Where Move Mouse keeps `Settings.xml`: the GitHub/portable build, then the Store build
 /// (MOVE-MOUSE.md §7). The caller supplies `%APPDATA%` and `%LOCALAPPDATA%`.
 pub fn default_paths(appdata: Option<&Path>, local_appdata: Option<&Path>) -> Vec<PathBuf> {
@@ -158,7 +174,8 @@ pub fn import(xml: &str) -> Result<Imported, String> {
     // Things we deliberately don't auto-translate, report them rather than guess.
     let n_actions = root
         .descendants()
-        .filter(|n| n.tag_name().name().ends_with("Action"))
+        .filter(|n| n.tag_name().name() == "Actions")
+        .flat_map(|a| a.children().filter(Node::is_element))
         .count();
     // The first enabled cursor action becomes Home's movement (spec 005).
     let cursor = root.descendants().find(|n| {
@@ -204,7 +221,7 @@ pub fn import(xml: &str) -> Result<Imported, String> {
     let others = n_actions - usize::from(cursor.is_some());
     if others > 0 {
         report.push(format!(
-            "{others} other Move Mouse action(s) not imported, click, scroll, keys and commands \
+            "{others} other Move Mouse action(s) not imported: click, scroll, keys and commands \
              have no equivalent here."
         ));
     }
@@ -216,7 +233,7 @@ pub fn import(xml: &str) -> Result<Imported, String> {
             .any(|n| n.tag_name().name() == "AdvancedSchedule")
     {
         report.push(
-            "Schedules were not auto-mapped (Move Mouse uses Start/Stop events), recreate the \
+            "Schedules were not auto-mapped (Move Mouse uses Start/Stop events). Recreate the \
              window with a weekly schedule rule if you need it."
                 .into(),
         );
@@ -385,5 +402,25 @@ mod tests {
             Path::new("C:/L/Packages/1258EllAbi.MoveMouse_hjfwaxvfbwh7t/LocalCache/Roaming/Ellanet/Move Mouse/Settings.xml")
         );
         assert!(default_paths(None, None).is_empty());
+    }
+
+    #[test]
+    fn clean_path_strips_quotes_and_whitespace() {
+        assert_eq!(clean_path(""), None);
+        assert_eq!(clean_path("  \"\"  "), None);
+        assert_eq!(clean_path(r#" " C:\x " "#), Some(PathBuf::from(r"C:\x")));
+        assert_eq!(clean_path(r"C:\y"), Some(PathBuf::from(r"C:\y")));
+    }
+
+    #[test]
+    fn a_schedules_action_child_is_not_a_dropped_action() {
+        let xml = r#"<Settings><Actions><MoveMouseCursorAction/></Actions>
+            <Schedules><SimpleSchedule><Action>Start</Action></SimpleSchedule></Schedules></Settings>"#;
+        let r = import(xml).unwrap();
+        assert!(
+            !r.report.iter().any(|l| l.contains("other Move Mouse")),
+            "{:?}",
+            r.report
+        );
     }
 }

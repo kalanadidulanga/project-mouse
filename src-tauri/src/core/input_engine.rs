@@ -95,12 +95,13 @@ impl InputEngine {
     }
 
     pub fn set_enabled(&mut self, on: bool) {
+        // A warning from Test (or any earlier run) must not outlive the switch.
+        if !on || !self.enabled {
+            self.blocked = false;
+        }
         self.enabled = on;
         // Pressing Start is itself input, so a whole cycle is what is left.
         self.next_move_in_ms = on.then_some(self.cycle_ms);
-        if !on {
-            self.blocked = false;
-        }
     }
 
     pub fn enabled(&self) -> bool {
@@ -171,8 +172,9 @@ impl InputEngine {
     pub fn tick(&mut self, last_input_tick: u32, now: u32) {
         // C7: did the last move actually reset the idle clock? If Windows' last-input tick is not
         // inside our span, the input was silently discarded (UIPI).
-        if let Some((start, end)) = self.pending_verify.take() {
-            self.blocked = !idle::in_span(last_input_tick, start, end);
+        if let Some((start, _end)) = self.pending_verify.take() {
+            // Only "still older than the span" means discarded: real input after it is the user.
+            self.blocked = idle::before_span(last_input_tick, start);
         }
         self.tracker.observe(last_input_tick);
         self.system_idle_ms = self.tracker.system_idle_ms(last_input_tick, now);
@@ -458,5 +460,25 @@ mod tests {
         e.set_enabled(false);
         assert!(!e.blocked);
         assert_eq!(e.next_move_in_secs(), None);
+    }
+
+    #[test]
+    fn real_input_after_the_span_is_not_a_blocked_move() {
+        let m = MockInjector::default();
+        let mut e = engine(&m);
+        e.move_now(1_000);
+        e.tick(2_000, 2_100);
+        assert!(!e.blocked);
+    }
+
+    #[test]
+    fn starting_clears_a_warning_left_by_a_failed_test() {
+        let m = MockInjector::default();
+        m.fail.store(true, Ordering::SeqCst);
+        let mut e = engine(&m);
+        e.move_now(1_000);
+        assert!(e.blocked);
+        e.set_enabled(true);
+        assert!(!e.blocked);
     }
 }

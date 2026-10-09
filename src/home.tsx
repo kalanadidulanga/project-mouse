@@ -81,8 +81,8 @@ export default function Home() {
   return (
     <>
       <UpdateBanner />
-      <div className={`status ${d?.tone ?? "off"}`} role="status" aria-live="polite">
-        <div className="status-title">
+      <div className={`status ${d?.tone ?? "off"}`}>
+        <div className="status-title" role="status" aria-live="polite">
           <span className="dot" aria-hidden="true" />
           {d?.title ?? " "}
         </div>
@@ -98,7 +98,11 @@ export default function Home() {
         className={`btn big ${running ? "" : "primary"}`}
         onClick={() => invoke(running ? "stop" : "start").then(read).catch(() => {})}
       >
-        {running ? "■  Stop" : "▶  Start"}
+        {running ? (
+          <><span aria-hidden="true">■</span>  Stop</>
+        ) : (
+          <><span aria-hidden="true">▶</span>  Start</>
+        )}
       </button>
 
       {input && (

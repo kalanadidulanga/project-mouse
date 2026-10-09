@@ -67,7 +67,7 @@ pub(crate) type SharedProfiles = Arc<Mutex<Vec<Profile>>>;
 /// What Start means (spec 005).
 pub(crate) type SharedRun = Arc<Mutex<RunSettings>>;
 
-/// Where to persist mode, and whether saving is allowed. Saving is disabled when the on-disk
+/// Where the config file lives, and whether saving is allowed. Saving is disabled when the on-disk
 /// config was corrupt, so we never overwrite a file the user may want to recover (FEATURES D8).
 struct Persist {
     path: PathBuf,
@@ -247,8 +247,9 @@ fn after_change(app: &tauri::AppHandle) {
     }
 }
 
-/// Persist the whole current config: manual mode + the active profile's rules: atomically.
-/// Disabled when the on-disk config was corrupt, so we never overwrite a recoverable file.
+/// Persist the whole current config atomically: profiles, input settings, run settings and the
+/// update switch. Disabled when the on-disk config was corrupt, so we never overwrite a
+/// recoverable file.
 pub(crate) fn persist_current(app: &tauri::AppHandle) {
     let profile = app
         .state::<SharedEngine>()

@@ -23,6 +23,13 @@ pub fn in_span(tick: u32, start: u32, end: u32) -> bool {
     tick.wrapping_sub(lo) <= end.wrapping_sub(start).wrapping_add(2 * TOLERANCE_MS)
 }
 
+/// `tick` is earlier than the span `start` (minus the tolerance): the OS idle clock never
+/// saw our input. Wrapping arithmetic, so the 49-day wrap cannot fake an answer.
+pub fn before_span(tick: u32, start: u32) -> bool {
+    let d = start.wrapping_sub(TOLERANCE_MS).wrapping_sub(tick);
+    d != 0 && d < u32::MAX / 2
+}
+
 pub struct IdleTracker {
     /// Tick of the last input believed to be human (our injections filtered out).
     human_last_input: u32,
@@ -130,5 +137,17 @@ mod tests {
         assert!(in_span(e, s, e));
         assert!(!in_span(e.wrapping_add(1_000), s, e));
         assert!(!in_span(s.wrapping_sub(1_000), s, e));
+    }
+
+    #[test]
+    fn before_span_is_only_true_for_a_tick_older_than_the_span() {
+        assert!(before_span(500, 1_000));
+        assert!(!before_span(1_000, 1_000));
+        assert!(!before_span(800, 1_000)); // inside the tolerance
+        assert!(!before_span(2_000, 1_000)); // real input after the span
+        let s = u32::MAX - 100;
+        assert!(before_span(s.wrapping_sub(1_000), s));
+        assert!(!before_span(s.wrapping_add(200), s));
+        assert!(!before_span(s.wrapping_add(1_000), s));
     }
 }

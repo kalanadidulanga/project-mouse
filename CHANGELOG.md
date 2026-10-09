@@ -35,6 +35,9 @@ you got was a tray icon (often hidden), and moving the mouse was a switch buried
 - Config moves to v3 on first launch. If you never switched input on in v0.2.x, your movement
   settings start fresh at the new defaults. Whether it was running is no longer remembered:
   use *Start automatically when project-mouse opens*.
+- `--keep running|presenting` and Ctrl+Alt+K now also move the mouse, unless *Move the mouse* is
+  off in Settings. That includes v0.2.x users who never switched input on, because migration
+  turns *Move the mouse* on.
 
 ## v0.2.1
 
