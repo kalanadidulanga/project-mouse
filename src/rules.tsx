@@ -283,12 +283,12 @@ export default function RulesPage() {
     });
   };
 
-  // The timer rule is owned by the Status page; it would only be confusing here.
+  // The timer rule is owned by Advanced → Keep awake for a while; it would only be confusing here.
   const rules = (profile?.rules ?? []).filter((r) => r.id !== "timer");
 
   return (
     <>
-      <h1>Rules</h1>
+      <h2>Rules</h2>
       <p className="note">
         A rule keeps the machine awake while all of its conditions hold. New rules start disabled —
         turn one on when you want it. Two rules that disagree resolve to the stronger mode.
