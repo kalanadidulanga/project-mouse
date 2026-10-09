@@ -97,6 +97,12 @@ impl PauseReason {
     pub fn holds_power(self) -> bool {
         !matches!(self, PauseReason::Battery)
     }
+
+    /// Whether this pause changes anything the user can see. A moves-only pause does nothing
+    /// when Move the mouse is off, so it is not reported as Paused; battery still is.
+    pub fn is_shown(self, move_mouse: bool) -> bool {
+        move_mouse || !self.holds_power()
+    }
 }
 
 /// The first pause that applies, in priority order: battery, locked, presenting, blackout.
@@ -533,6 +539,18 @@ mod tests {
             ..only_presenting
         };
         assert_eq!(pause_reason(&none, &[], &s), None);
+    }
+
+    #[test]
+    fn a_moves_only_pause_is_not_shown_when_moves_are_off() {
+        for p in [
+            PauseReason::Locked,
+            PauseReason::Presenting,
+            PauseReason::Blackout { until: 60 },
+        ] {
+            assert!(p.is_shown(true) && !p.is_shown(false), "{p:?}");
+        }
+        assert!(PauseReason::Battery.is_shown(false));
     }
 
     #[test]

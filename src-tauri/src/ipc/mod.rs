@@ -119,6 +119,7 @@ pub fn get_status(
     };
     let pause = if on {
         autopilot::pause_reason(&settings, &timetable.lock().unwrap().blackouts, &snap)
+            .filter(|p| p.is_shown(settings.move_mouse))
     } else {
         None
     };

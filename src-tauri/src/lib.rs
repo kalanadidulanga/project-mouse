@@ -320,7 +320,8 @@ fn window_state(app: &tauri::AppHandle) -> (bool, bool) {
     let settings = *app.state::<SharedRun>().lock().unwrap();
     let snap = app.state::<Arc<Sampler>>().last();
     let tt = app.state::<SharedTimetable>();
-    let paused = autopilot::pause_reason(&settings, &tt.lock().unwrap().blackouts, &snap).is_some();
+    let paused = autopilot::pause_reason(&settings, &tt.lock().unwrap().blackouts, &snap)
+        .is_some_and(|p| p.is_shown(settings.move_mouse));
     (true, paused)
 }
 
@@ -545,14 +546,12 @@ pub fn run() {
         platform.power_source.clone(),
         platform.session.clone(),
     ));
+    // Sample once before anything reads `last()`: until then it is the default snapshot (epoch 0).
+    let startup_snap = sampler.snapshot();
     let startup_pause = if initial_mode == WakeMode::Off {
         None
     } else {
-        autopilot::pause_reason(
-            &run_settings,
-            &timetable_value.blackouts,
-            &sampler.snapshot(),
-        )
+        autopilot::pause_reason(&run_settings, &timetable_value.blackouts, &startup_snap)
     };
     running::apply(
         &mut engine,
@@ -770,7 +769,7 @@ pub fn run() {
                         blocked_told = false;
                     }
                     let move_mouse = sched_run.lock().unwrap().move_mouse;
-                    let pause = if on { decision.pause } else { None };
+                    let pause = decision.pause.filter(|p| on && p.is_shown(move_mouse));
                     let kind =
                         running::status_kind(on, move_mouse, blocked, effective, pause.is_some());
                     let tip =

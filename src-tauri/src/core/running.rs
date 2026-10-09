@@ -327,6 +327,33 @@ mod tests {
         assert_eq!(guard.held(), Some(true));
     }
 
+    /// Spec 006 FR-012: an active rule holds power even while the manual mode is suspended.
+    #[test]
+    fn an_active_rule_still_holds_power_while_the_battery_pause_suspends_start() {
+        use crate::core::apps;
+        use crate::core::snapshot::Snapshot;
+        let (mut e, mut i, guard) = engines_with_guard();
+        let mut p = e.profile().clone();
+        apps::set_apps(&mut p, vec!["msbuild.exe".into()]);
+        e.set_profile(p);
+        let s = RunSettings::default();
+        apply(
+            &mut e,
+            &mut i,
+            &s,
+            s.start_mode(),
+            Some(PauseReason::Battery),
+        );
+        let snap = Snapshot {
+            running_processes: vec!["msbuild.exe".into()],
+            ..Default::default()
+        };
+        e.tick(&snap);
+        assert_eq!(guard.held(), Some(false), "KeepRunning from the rule");
+        e.tick(&Default::default());
+        assert_eq!(guard.held(), None, "no rule match, nothing held");
+    }
+
     #[test]
     fn a_pause_shows_as_paused_only_while_running() {
         use StatusKind::*;

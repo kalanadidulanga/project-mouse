@@ -6,6 +6,7 @@ use serde_json::{json, Value};
 use super::model::{Config, CURRENT_SCHEMA_VERSION};
 use crate::core::apps;
 use crate::core::input_engine::InputSettings;
+use crate::core::modes::WakeMode;
 use crate::core::rule::Profile;
 
 /// Migrate a parsed JSON value up to the current `Config`.
@@ -57,7 +58,7 @@ pub fn migrate(mut value: Value) -> Result<Config, String> {
 }
 
 /// v3 → v4 (spec 006 FR-019, FR-031): drop the Advanced timer rule, and fold every enabled
-/// process-only rule into the plain apps list. Every other rule stays exactly as it was
+/// KeepRunning process-only rule into the plain apps list. Every other rule stays exactly as it was
 /// (constitution VI); About ▸ Troubleshooting lists them.
 fn upgrade_rules(profiles: &mut [Profile]) {
     for p in profiles {
@@ -65,7 +66,9 @@ fn upgrade_rules(profiles: &mut [Profile]) {
         let mut names = apps::apps(p);
         let mut folded: Vec<String> = Vec::new();
         for r in &p.rules {
-            if let Some(n) = apps::process_only(r).filter(|_| r.enabled) {
+            if let Some(n) =
+                apps::process_only(r).filter(|_| r.enabled && r.mode == WakeMode::KeepRunning)
+            {
                 names.extend(n.iter().cloned());
                 folded.push(r.id.clone());
             }
@@ -195,7 +198,9 @@ mod tests {
                 { "id": "c", "name": "off one", "enabled": false,
                   "conditions": [{ "ProcessRunning": ["off.exe"] }], "mode": "KeepRunning" },
                 { "id": "d", "name": "on AC", "enabled": true,
-                  "conditions": ["OnACPower"], "mode": "KeepPresenting" }
+                  "conditions": ["OnACPower"], "mode": "KeepPresenting" },
+                { "id": "e", "name": "screen on for video", "enabled": true,
+                  "conditions": [{ "ProcessRunning": ["vlc.exe"] }], "mode": "KeepPresenting" }
             ]}],
             "active_profile": "default"
         })
@@ -212,6 +217,7 @@ mod tests {
         assert!(!ids.contains(&"b"), "the process rule was folded");
         assert!(ids.contains(&"c"), "a disabled rule is kept as it is");
         assert!(ids.contains(&"d"), "a non-process rule is kept as it is");
+        assert!(ids.contains(&"e"), "only KeepRunning process rules fold");
         assert!(ids.contains(&APPS_RULE_ID));
         assert_eq!(apps(p), vec!["msbuild.exe".to_string()]);
     }

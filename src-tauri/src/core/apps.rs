@@ -23,7 +23,11 @@ pub fn apps(profile: &Profile) -> Vec<String> {
 pub fn set_apps(profile: &mut Profile, names: Vec<String>) -> Vec<String> {
     let mut list: Vec<String> = Vec::new();
     for n in names {
-        let n = n.trim().to_string();
+        let mut n = n.trim().to_string();
+        // A process name is matched with its extension, so `notepad` means `notepad.exe`.
+        if !n.is_empty() && !n.contains('.') {
+            n.push_str(".exe");
+        }
         if !n.is_empty() && !list.iter().any(|x| x.eq_ignore_ascii_case(&n)) {
             list.push(n);
         }
@@ -64,6 +68,13 @@ mod tests {
 
     fn names(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn a_name_without_an_extension_gets_exe() {
+        let mut p = Profile::new("default", "Default");
+        let list = set_apps(&mut p, names(&["notepad", "a.b", "Notepad.exe"]));
+        assert_eq!(list, names(&["notepad.exe", "a.b"]));
     }
 
     #[test]
