@@ -1,4 +1,4 @@
-// project-mouse — M0 SPIKE. THROWAWAY CODE (ROADMAP.md M0). Do not build on this.
+// project-mouse: M0 SPIKE. THROWAWAY CODE (ROADMAP.md M0). Do not build on this.
 //
 // Proves the two undocumented assumptions the whole stack rests on:
 //   1. A destroyed Tauri webview actually returns memory to the OS (ARCHITECTURE §3).
@@ -107,10 +107,10 @@ fn hold_power(app: &AppHandle, execution: bool, display: bool) {
     let st = app.state::<Mutex<AppState>>();
     let mut s = st.lock().unwrap();
     if s.power_handle.is_some() {
-        log("power already held — release first");
+        log("power already held, release first");
         return;
     }
-    let reason: Vec<u16> = "project-mouse M0 spike — Keep running"
+    let reason: Vec<u16> = "project-mouse M0 spike: Keep running"
         .encode_utf16()
         .chain(std::iter::once(0))
         .collect();
@@ -145,13 +145,13 @@ fn hold_power(app: &AppHandle, execution: bool, display: bool) {
 }
 
 fn hold_stes(app: &AppHandle) {
-    // Comparison path only — the thing every competitor uses. Thread-affine, so it
+    // Comparison path only, the thing every competitor uses. Thread-affine, so it
     // rides the long-lived main thread (menu events run there). See WINDOWS-API gotcha 2.
     unsafe {
         let _ = SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED);
     }
     app.state::<Mutex<AppState>>().lock().unwrap().stes_active = true;
-    log("STES set: ES_CONTINUOUS|ES_SYSTEM_REQUIRED (comparison only — no execution-required equivalent exists)");
+    log("STES set: ES_CONTINUOUS|ES_SYSTEM_REQUIRED (comparison only: no execution-required equivalent exists)");
 }
 
 fn release_power(app: &AppHandle) {
@@ -239,7 +239,7 @@ fn auto_run(app: AppHandle) {
     log_ws("T4 after hide (settled 8s)  <-- comparison: expect NO drop");
 
     hold_power(&app, true, false);
-    log("T7 power held (system+execution) — now run: powercfg /requests");
+    log("T7 power held (system+execution), now run: powercfg /requests");
     log("=== AUTO RUN COMPLETE (power still held; quit or taskkill for T8) ===");
 }
 
@@ -275,7 +275,7 @@ pub fn run() {
                 &h,
                 &[
                     &item("open_destroy", "Open window (destroy on close)")?,
-                    &item("open_hide", "Open window (hide on close — comparison)")?,
+                    &item("open_hide", "Open window (hide on close: comparison)")?,
                     &sep()?,
                     &item("power_run", "Hold power: Keep running (system+execution)")?,
                     &item("power_present", "Hold power: Keep presenting (+display)")?,
@@ -320,14 +320,14 @@ pub fn run() {
                     log_ws("after hide (window still resident)");
                 } else {
                     let _ = window.destroy();
-                    log_ws("after destroy (immediate — WebView2 procs still settling)");
+                    log_ws("after destroy (immediate, WebView2 procs still settling)");
                 }
             }
         })
         .build(tauri::generate_context!())
         .expect("error building tauri app")
         .run(|_app, event| {
-            // Stay alive with zero windows — TAURI-V2 §2. Only code:None (last window closed)
+            // Stay alive with zero windows, TAURI-V2 §2. Only code:None (last window closed)
             // is prevented; Quit uses app.exit(0) → Some(0) → allowed through.
             if let tauri::RunEvent::ExitRequested { code: None, api, .. } = event {
                 api.prevent_exit();

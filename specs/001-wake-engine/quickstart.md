@@ -1,4 +1,4 @@
-# M1 quickstart — build, run, verify
+# M1 quickstart: build, run, verify
 
 Prereqs: Rust (MSVC toolchain), Node + npm, WebView2 runtime (ships with Win10 1809+/11).
 
@@ -18,13 +18,13 @@ cargo build --release             # -> src-tauri/target/release/project-mouse.ex
 ./target/release/project-mouse.exe
 ```
 
-Look for the tray icon (no window opens — by design). Right/left-click it for the menu:
+Look for the tray icon (no window opens: by design). Right/left-click it for the menu:
 **Off · Keep running · Keep presenting · Start with Windows · Quit**. The tooltip states what is
 currently true of the machine.
 
 ## Verify the exit criteria
 
-### SC-001..SC-004 — modes + auditable + clean release  *(needs one elevated prompt)*
+### SC-001..SC-004: modes + auditable + clean release  *(needs one elevated prompt)*
 
 1. Click **Keep running**. In an **elevated** terminal:
    ```powershell
@@ -38,28 +38,28 @@ currently true of the machine.
 5. Repeat step 4 but `taskkill /F /IM project-mouse.exe` instead of Quit → still clean (the
    handle-scoped request dies with the process; a panic hook covers `panic=abort`).
 
-### SC-005 — config safety
+### SC-005: config safety
 
 - Set a mode, then hard-kill the process during use. Relaunch → the mode is restored (config is
   written atomically: temp + fsync + rename).
 - Corrupt the `config.json` (beside the exe, or `%APPDATA%\project-mouse\`) by hand → relaunch.
   The app logs an error, **keeps the broken file**, starts Off, and does not overwrite it.
 
-### SC-006 — portable / no admin
+### SC-006: portable / no admin
 
 - Copy just `project-mouse.exe` to a USB stick and run it (no installer, no admin). Config and
   `logs/` appear beside it. With Process Monitor, confirm **zero registry writes** until you
   toggle **Start with Windows** (which adds one `HKCU\...\Run` entry).
 
-### SC-007 — footprint
+### SC-007: footprint
 
 - Idle in the tray for 10 min. Working set should settle low after the post-startup
-  `EmptyWorkingSet` trim. NOTE: the ≤8 MB budget is **private working set** — measure it with
+  `EmptyWorkingSet` trim. NOTE: the ≤8 MB budget is **private working set**: measure it with
   VMMap (Sysinternals) or Task Manager's "Memory (active private working set)" column, not the
   plain working-set number. The precise CI budget gate lands in M5.
 
-### SC-009 — Modern Standby (S0)  *(manual, hardware)*
+### SC-009: Modern Standby (S0)  *(manual, hardware)*
 
 On an S0 laptop: **Keep running**, close the lid, leave 8 h. The machine must still be reachable
-and a running job must have completed. Compare against `SetThreadExecutionState` (which fails) —
+and a running job must have completed. Compare against `SetThreadExecutionState` (which fails):
 this is the flagship correctness test and cannot be automated.

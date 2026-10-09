@@ -2,7 +2,7 @@
 //! process lifetime or buffered lines are lost on exit.
 //!
 //! ponytail: daily rotation (tracing-appender's only built-in) instead of the docs' 1 MB × 3.
-//! `get_logs` reads the newest file's tail rather than keeping an in-memory ring buffer — the
+//! `get_logs` reads the newest file's tail rather than keeping an in-memory ring buffer, the
 //! window opens minutes a day, so file IO on open is cheaper than a resident buffer.
 
 use std::path::{Path, PathBuf};

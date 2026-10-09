@@ -326,7 +326,7 @@ change every `t.note_injection(X)` to `t.note_injection(X, X)` (three call sites
         t.note_injection(1_000, 1_400);
         t.observe(1_400); // Windows' last input = the path's last step
         assert_eq!(t.human_idle_ms(1_500), 1_500);
-        t.observe(1_700); // 300 ms after the path — a person
+        t.observe(1_700); // 300 ms after the path, a person
         assert_eq!(t.human_idle_ms(1_700), 0);
     }
 
@@ -482,7 +482,7 @@ mod tests {
         e.set_enabled(true);
         e.tick(0, 300_000);
         e.tick(300_200, 301_000);
-        e.tick(301_000, 301_500); // 800 ms after the path ended — that is a person
+        e.tick(301_000, 301_500); // 800 ms after the path ended, that is a person
         assert_eq!(e.human_idle_ms, 500);
     }
 
@@ -642,7 +642,7 @@ impl IdleTracker {
     }
 
     /// Observe the OS's last-input tick (`GetLastInputInfo.dwTime`). If it falls inside our last
-    /// injection, it was us — leave the human clock alone. Otherwise a real human moved.
+    /// injection, it was us, leave the human clock alone. Otherwise a real human moved.
     pub fn observe(&mut self, system_last_input: u32) {
         let is_ours = self
             .injected
@@ -697,7 +697,7 @@ fn default_distance() -> u16 {
 }
 
 impl Default for InputSettings {
-    /// A visible 10 px square after a minute with no input — what someone arriving from Move
+    /// A visible 10 px square after a minute with no input, what someone arriving from Move
     /// Mouse expects to see (spec 005; FEATURES Part C, amended).
     fn default() -> Self {
         Self {
@@ -824,7 +824,7 @@ impl InputEngine {
                 tracing::warn!("injection failed: {e}");
             }
         }
-        // C5: vary once per cycle, so the countdown is steady. Seeded from the tick — no RNG state.
+        // C5: vary once per cycle, so the countdown is steady. Seeded from the tick, no RNG state.
         self.cycle_ms = motion::vary(self.interval_ms, self.vary_pct as u32, now);
     }
 
@@ -904,7 +904,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```rust
 //! Start/Stop (spec 005 FR-003). One running state over the two engines, which stay separate
 //! (constitution I): Start holds a power mode and, unless *Move the mouse* is off, enables the
-//! input engine. Everything that starts or stops — window, tray, hotkey, CLI — goes through here.
+//! input engine. Everything that starts or stops, window, tray, hotkey, CLI, goes through here.
 
 use serde::{Deserialize, Serialize};
 
@@ -1150,7 +1150,7 @@ that line again in Task 5, step 5.
 
 ```bash
 git add src-tauri/src/core/running.rs src-tauri/src/core/mod.rs
-git commit -m "feat(M7): core::running — one Start/Stop invariant over both engines (FR-003)
+git commit -m "feat(M7): core::running: one Start/Stop invariant over both engines (FR-003)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1363,8 +1363,8 @@ pub fn migrate(mut value: Value) -> Result<Config, String> {
     match version {
         0..=2 => {
             // v3 stopped saving whether it was running (`mode`) and replaced the input switch
-            // with Start. If that switch was never on, nobody chose the input settings — they
-            // are v2's invisible defaults — so v3's visible ones replace them. Someone who did
+            // with Start. If that switch was never on, nobody chose the input settings, they
+            // are v2's invisible defaults, so v3's visible ones replace them. Someone who did
             // turn it on keeps what they set (spec 005 FR-014).
             let input_was_on = value
                 .get("input_enabled")
@@ -1471,8 +1471,8 @@ with:
     if !p.enabled {
         return;
     }
-    // Merge the live profile into the stored collection. Writing `vec![profile]` here — as this
-    // did until 2026-08-28 — destroyed every other profile on the next save (research R3).
+    // Merge the live profile into the stored collection. Writing `vec![profile]` here, as this
+    // did until 2026-08-28, destroyed every other profile on the next save (research R3).
     let all = match app.try_state::<SharedProfiles>() {
         Some(state) => {
             let mut list = state.lock().unwrap();
@@ -1550,7 +1550,7 @@ Expected: clean. If `RunSettings` items are reported dead, the Task 3 allow stil
 
 ```bash
 git add src-tauri/src/config src-tauri/src/lib.rs
-git commit -m "feat(M7): config v3 — run settings, no saved mode; v2 input defaults reset (FR-014)
+git commit -m "feat(M7): config v3: run settings, no saved mode; v2 input defaults reset (FR-014)
 
 Also: a config that is JSON but not an object is now 'corrupt', not a panic
 (release builds abort on panic, so it killed the app at launch).
@@ -1609,7 +1609,7 @@ its initialiser, `set_paused` and `paused`. Replace `tick`'s body and doc commen
 ```rust
 /// Every start and stop goes through here (spec 005 FR-003): set the manual mode and bring the
 /// input engine into line, reconcile power now rather than on the next tick (so Stop is
-/// immediate — SC-004), then tell the tray and any open window. Lock order: run → engine → input.
+/// immediate, SC-004), then tell the tray and any open window. Lock order: run → engine → input.
 pub(crate) fn apply_mode(app: &tauri::AppHandle, mode: WakeMode) {
     let settings = *app.state::<SharedRun>().lock().unwrap();
     let snap = app.state::<Arc<Sampler>>().last();
@@ -1990,7 +1990,7 @@ fn motion_of(direction: &str) -> (Motion, bool) {
     let others = n_actions - usize::from(cursor.is_some());
     if others > 0 {
         report.push(format!(
-            "{others} other Move Mouse action(s) not imported — click, scroll, keys and commands \
+            "{others} other Move Mouse action(s) not imported, click, scroll, keys and commands \
              have no equivalent here."
         ));
     }
@@ -2106,10 +2106,10 @@ mod tests {
     #[test]
     fn the_tooltip_says_what_is_true() {
         use StatusKind::*;
-        assert_eq!(tooltip(Stopped, None, None, None), "project-mouse — Stopped");
+        assert_eq!(tooltip(Stopped, None, None, None), "project-mouse: Stopped");
         assert_eq!(
             tooltip(Running, Some(42), None, None),
-            "project-mouse — Running · next move in 0:42"
+            "project-mouse: Running · next move in 0:42"
         );
         assert!(tooltip(RunningBlocked, None, None, None).contains("blocked"));
         assert!(tooltip(RunningPowerOnly, None, None, None).contains("keeping the PC awake"));
@@ -2244,7 +2244,7 @@ pub fn tooltip(
         StatusKind::RunningPowerOnly => "Running · keeping the PC awake".to_string(),
         StatusKind::RunningBlocked => "Running · Windows blocked the last move".to_string(),
     };
-    let mut s = format!("project-mouse — {state}");
+    let mut s = format!("project-mouse: {state}");
     if let Some(left) = rule_left_secs {
         s.push_str(&format!(" · rule ends in {}", remaining(left)));
     }
@@ -2497,7 +2497,7 @@ fn apply_forwarded(app: &tauri::AppHandle, argv: &[String]) {
             }
 ```
 
-  9. Update the crate doc at the top of lib.rs to: *"project-mouse — Start/Stop over a wake
+  9. Update the crate doc at the top of lib.rs to: *"project-mouse: Start/Stop over a wake
      engine and an input engine (spec 005). A scheduler thread ticks ~1 s: it samples state,
      evaluates the active profile, reconciles power and runs the input engine."*
 
@@ -3071,9 +3071,9 @@ function Readout({ diag }: { diag: Diagnostics | null }) {
         </p>
       )}
       <div style={{ marginTop: 12 }}>
-        <div className="row"><span className="k">Memory</span><span className="v">{diag ? `${diag.memory_mb.toFixed(1)} MB` : "—"}</span></div>
-        <div className="row"><span className="k">System idle</span><span className="v">{diag ? fmtIdle(diag.system_idle_secs) : "—"}</span></div>
-        <div className="row"><span className="k">Your idle</span><span className="v">{diag ? fmtIdle(diag.human_idle_secs) : "—"}</span></div>
+        <div className="row"><span className="k">Memory</span><span className="v">{diag ? `${diag.memory_mb.toFixed(1)} MB` : "-"}</span></div>
+        <div className="row"><span className="k">System idle</span><span className="v">{diag ? fmtIdle(diag.system_idle_secs) : "-"}</span></div>
+        <div className="row"><span className="k">Your idle</span><span className="v">{diag ? fmtIdle(diag.human_idle_secs) : "-"}</span></div>
         {diag?.remote_session && (
           <div className="row"><span className="k">Session</span><span className="v">remote (RDP or similar)</span></div>
         )}
@@ -3246,7 +3246,7 @@ Delete `src/firstrun.tsx`. In `index.html`, change the `<title>` to `project-mou
   - Append:
 
 ```css
-/* Home + sections (spec 005, UI-UX §0.5). Layout only — no motion. */
+/* Home + sections (spec 005, UI-UX §0.5). Layout only, no motion. */
 .content h2 { font-size: 13px; font-weight: 600; margin: 0 0 8px; }
 .section { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px; }
 
@@ -3280,7 +3280,7 @@ Run the honesty gate: `rg -in "undetectable|human-like|looks human|natural motio
 
 ```bash
 git add -A src index.html
-git commit -m "feat(M7): Home / Settings / Advanced — Start/Stop you can see (FR-010/011/012/013)
+git commit -m "feat(M7): Home / Settings / Advanced: Start/Stop you can see (FR-010/011/012/013)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -3312,7 +3312,7 @@ It does not change your power plan, and it releases everything on exit. Monitori
 detect simulated input. With *Move the mouse* off (Settings) it sends no input at all, and then
 it cannot defeat a screen lock or a chat presence indicator.
 
-*(`project-mouse` is a working title — see [PRODUCT.md §9](docs/PRODUCT.md#9-the-name).)*
+*(`project-mouse` is a working title, see [PRODUCT.md §9](docs/PRODUCT.md#9-the-name).)*
 
 The rest of this README explains the engine underneath.
 ```

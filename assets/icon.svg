@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <!--
-    project-mouse app icon — the source of truth. Regenerate every platform size with:
+    project-mouse app icon: the source of truth. Regenerate every platform size with:
         npx tauri icon assets/icon.svg
 
     Design notes, so the next person does not "improve" it into something unreadable:

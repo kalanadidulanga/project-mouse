@@ -1,13 +1,13 @@
 # project-mouse Constitution
 
 The non-negotiable principles every spec, plan, task, and implementation is checked
-against. Derived from `docs/` — when this file and the docs disagree, the docs are the
+against. Derived from `docs/`: when this file and the docs disagree, the docs are the
 source and this file is fixed to match. Full rationale lives in the docs referenced
 per principle.
 
 ## Core Principles
 
-### I. Two mechanisms, kept separate — power by default, input opt-in
+### I. Two mechanisms, kept separate: power by default, input opt-in
 
 The product is the distinction between **power inhibition** (mechanism A: `PowerCreateRequest`/
 `PowerSetRequest`, sanctioned, ~zero policy risk) and **input synthesis** (mechanism B:
@@ -26,12 +26,12 @@ global input-synthesis switch, and it is not in the UI. (`docs/PRODUCT.md §2`, 
 If a feature cannot be described accurately in a UI string, it does not ship. No string, doc
 line, release note, or marketing copy ever describes any feature as *undetectable*, *human-like*,
 *natural*, or as evading monitoring. A feature that only makes sense as detection evasion fails
-review and is cut — this already cost us "human-like motion." Randomisation ships only as "vary
+review and is cut, this already cost us "human-like motion." Randomisation ships only as "vary
 the movement so it is less intrusive." CI greps for the banned words. (`docs/PRODUCT.md §5`)
 
 ### III. Non-destructive and auditable
 
-Never modify persistent system state — no power-plan edits, no policy-key writes, no
+Never modify persistent system state: no power-plan edits, no policy-key writes, no
 `SPI_SETSCREENSAVEACTIVE`, no volume changes. Every power request carries a specific
 `REASON_CONTEXT` string so it appears in `powercfg /requests` attributed to us by name. The
 request is released on every exit path **and** in a panic hook; a leaked request is a
@@ -42,7 +42,7 @@ must stay literally true. (`docs/FEATURES.md A3`, `docs/WINDOWS-API.md gotcha 12
 
 All OS-specific code lives behind the `platform/` traits (`InputInjector`, `IdleMonitor`,
 `PowerGuard`, `ProcessMonitor`, `ForegroundMonitor`, `SessionMonitor`, `AutoStart`, …). No
-`#[cfg(windows)]` outside `platform/` — it is a CI lint. This yields a `MockPlatform` for free,
+`#[cfg(windows)]` outside `platform/`: it is a CI lint. This yields a `MockPlatform` for free,
 which is what makes the engine unit-testable without Win32. `ipc/` contains no logic; every
 command is a thin wrapper over a `core` call. (`docs/CROSS-PLATFORM.md §2`, `docs/ARCHITECTURE.md §4`)
 
@@ -50,7 +50,7 @@ command is a thin wrapper over a `core` call. (`docs/CROSS-PLATFORM.md §2`, `do
 
 Rule engine, condition/trigger evaluation, cooldowns, the self-injection filter, idle-time
 wrap/clamp arithmetic, and config migrations are pure logic and are written test-first against
-`MockPlatform` — no Win32 in the test suite. Red → green → refactor. Win32 FFI wrappers that
+`MockPlatform`: no Win32 in the test suite. Red → green → refactor. Win32 FFI wrappers that
 cannot be unit-tested are exercised by the M0-style manual/integration checks and named as such.
 (`docs/ARCHITECTURE.md §11`)
 
@@ -58,7 +58,7 @@ cannot be unit-tested are exercised by the M0-style manual/integration checks an
 
 `schema_version` from the very first release, with a migration chain. Atomic write (temp +
 fsync + `MoveFileEx` replace), debounced. On a parse error, **never silently fall back to
-defaults** — surface the error, keep the broken file, offer a reset. No SQLite. (`docs/ARCHITECTURE.md §8`, `docs/FEATURES.md D8`)
+defaults**: surface the error, keep the broken file, offer a reset. No SQLite. (`docs/ARCHITECTURE.md §8`, `docs/FEATURES.md D8`)
 
 ## Technology & Footprint Constraints
 

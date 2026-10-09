@@ -5,7 +5,7 @@ Only types that are **new** or whose **shape changes** are listed. Existing type
 
 ---
 
-## `AwakeReport` — what E1 renders
+## `AwakeReport`: what E1 renders
 
 Produced by `core::awake::report()`, a pure function over (machine aggregate, our own mode).
 Serialized to the UI as-is.
@@ -16,11 +16,11 @@ Serialized to the UI as-is.
 | `system_held` | `bool` | Something on this machine holds a system-required request |
 | `display_held` | `bool` | Something holds a display-required request |
 | `away_mode_held` | `bool` | Something holds an away-mode request |
-| `ours` | `WakeMode` | What **we** are holding — known exactly, we made the request |
+| `ours` | `WakeMode` | What **we** are holding, known exactly, we made the request |
 
 **Validation rule**: the `*_held` flags are Windows' aggregate reported **verbatim**. They are
 never adjusted for `ours`, because whether our own `PowerSetRequest` appears in that aggregate
-could not be verified — see [research.md R1, T014 result](./research.md). The two are reported
+could not be verified, see [research.md R1, T014 result](./research.md). The two are reported
 side by side and the UI lets the reader combine them; merging them would suppress a real
 third-party request whenever we happened to hold the same kind.
 
@@ -37,7 +37,7 @@ away_mode_held = aggregate & ES_AWAYMODE_REQUIRED
 ours           = passed through unchanged
 ```
 
-## `ProfileSummary` — the profile switcher
+## `ProfileSummary`: the profile switcher
 
 The engine holds exactly one `Profile`; the *collection* lives in config. The UI needs the list
 without the rules.
@@ -49,18 +49,18 @@ without the rules.
 | `active` | `bool` | Currently loaded into the engine |
 | `rule_count` | `usize` | Shown on the switcher so an empty profile is visible as empty |
 
-## `Snapshot.remote_session` — now populated
+## `Snapshot.remote_session`: now populated
 
 Already declared and `#[allow(dead_code)]`. R2 fills it from `SM_REMOTESESSION` in the sampler.
-The `#[allow(dead_code)]` comes off. No new condition variant is added in this feature — the
+The `#[allow(dead_code)]` comes off. No new condition variant is added in this feature, the
 field becomes readable in diagnostics; a `RemoteSession` condition is M6 (FEATURES B6).
 
-## `Config` — no schema change
+## `Config`: no schema change
 
 `schema_version` stays **2**. The collection is already `profiles: Vec<Profile>` with
 `active_profile: String`; nothing on disk changes shape. What changes is that
 `lib.rs::persist_current` stops overwriting the whole vector with the single profile the engine
-holds (research R3) — a **write-path bug fix, not a migration**.
+holds (research R3), a **write-path bug fix, not a migration**.
 
 ## State transitions
 

@@ -41,7 +41,7 @@ you got was a tray icon (often hidden), and moving the mouse was a switch buried
 An available update is now visible.
 
 v0.2.0 shipped correctly and nothing appeared to happen, because the only notice
-an update existed was the tray tooltip — and the tooltip is rewritten whenever the
+an update existed was the tray tooltip, and the tooltip is rewritten whenever the
 mode or the timer text changes, so the notice was usually wiped seconds after it
 appeared.
 
@@ -64,7 +64,7 @@ appeared.
 ## v0.2.0
 
 The window became the control surface. v0.1.0 shipped an engine that understood far more than its
-UI would let you say — eleven condition types reachable through one text box, and an input engine
+UI would let you say: eleven condition types reachable through one text box, and an input engine
 whose interval was a constant in the source. That is fixed.
 
 ### Added
@@ -77,7 +77,7 @@ whose interval was a constant in the source. That is fixed.
 - **Timer.** Keep running or presenting for 15 m / 30 m / 1 h / 2 h / 4 h, with a countdown in the
   window and in the tray tooltip. It is built as a rule that expires, so it releases itself.
 - **"Why is my PC awake?"** Two lines, kept separate on purpose: what project-mouse is holding
-  (exact — we made the request), and what Windows will report to a program running without
+  (exact, we made the request), and what Windows will report to a program running without
   administrator rights (verbatim, labelled a hint rather than an inventory). Plus `powercfg
   /requests` as copyable text for the full list with names.
 
@@ -89,7 +89,7 @@ whose interval was a constant in the source. That is fixed.
 - **First run.** One question, three answers, each creating a working profile in seconds. None of
   them synthesizes input.
 - **Input engine settings**, previously hardcoded: how often, how long you must be idle first, and
-  what to send — mouse movement or an F15 / Scroll Lock / Shift keypress.
+  what to send, mouse movement or an F15 / Scroll Lock / Shift keypress.
 - **Visible cursor movement.** Back and forth, around a square, or around a circle, with a
   configurable distance. Every path is closed: a full cycle returns the cursor to exactly where you
   left it. The default remains the virtual jiggle, which resets the idle timer without the cursor
@@ -107,7 +107,7 @@ whose interval was a constant in the source. That is fixed.
   startup and never again, so it stayed at ~28 MB. Now: 2.2 MB with only the tray, 34.5 MB with the
   window open, 4.6 MB again shortly after closing it.
 - **A config file with a UTF-8 byte-order mark read as corrupt.** Notepad and PowerShell both write
-  one. The app correctly refused to overwrite a file it could not parse — but the file was fine.
+  one. The app correctly refused to overwrite a file it could not parse; but the file was fine.
 - The window's permissions are narrowed to the two it actually uses.
 
 ### Notes

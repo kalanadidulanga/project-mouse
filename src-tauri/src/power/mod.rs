@@ -39,7 +39,7 @@ impl PowerReconciler {
         Ok(())
     }
 
-    /// Release everything and return to Off — for shutdown and the panic hook.
+    /// Release everything and return to Off, for shutdown and the panic hook.
     pub fn release(&mut self) -> Result<()> {
         self.guard.clear()?;
         self.current = WakeMode::Off;
@@ -94,7 +94,7 @@ mod tests {
         rec.reconcile(KeepRunning).unwrap();
         rec.reconcile(KeepPresenting).unwrap();
         assert_eq!(mock.held(), Some(true));
-        // set, set — two distinct applications
+        // set, set, two distinct applications
         assert_eq!(mock.calls().len(), 2);
     }
 

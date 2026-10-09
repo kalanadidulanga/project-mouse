@@ -1,4 +1,4 @@
-//! The profile collection. Pure — no Win32, no `AppHandle`, no config I/O (constitution IV/V).
+//! The profile collection. Pure, no Win32, no `AppHandle`, no config I/O (constitution IV/V).
 //! The engine holds exactly one `Profile`; this is the set it is chosen from.
 
 use crate::core::rule::Profile;
@@ -11,8 +11,8 @@ pub fn upsert(list: &mut Vec<Profile>, profile: Profile) {
     }
 }
 
-/// Remove the profile with `id`. Refuses to remove the last one — the engine must always hold a
-/// profile — and reports whether it removed anything.
+/// Remove the profile with `id`. Refuses to remove the last one, the engine must always hold a
+/// profile, and reports whether it removed anything.
 pub fn delete(list: &mut Vec<Profile>, id: &str) -> bool {
     if list.len() <= 1 {
         return false;

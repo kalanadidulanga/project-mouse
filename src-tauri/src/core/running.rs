@@ -1,6 +1,6 @@
 //! Start/Stop (spec 005 FR-003). One running state over the two engines, which stay separate
 //! (constitution I): Start holds a power mode and, unless *Move the mouse* is off, enables the
-//! input engine. Everything that starts or stops — window, tray, hotkey, CLI — goes through here.
+//! input engine. Everything that starts or stops, window, tray, hotkey, CLI, goes through here.
 
 use serde::{Deserialize, Serialize};
 

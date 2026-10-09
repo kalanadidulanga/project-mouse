@@ -1,6 +1,6 @@
 //! Visible cursor movement (FEATURES C2) and the honest kind of randomisation (C5).
 //!
-//! Pure — the actual `SendInput` lives behind `platform::InputInjector`. Every path here is a
+//! Pure, the actual `SendInput` lives behind `platform::InputInjector`. Every path here is a
 //! **closed** one: the steps of a full cycle sum to zero, so the cursor is back where the user
 //! left it. C2 calls this "return to origin", and it is what stops a jiggler from walking the
 //! pointer across the desk over an afternoon.
@@ -40,7 +40,7 @@ impl Motion {
     /// The relative move for step `index` of the cycle, in pixels.
     ///
     /// ⚠️ Relative moves pass through pointer acceleration, so `distance` is a request, not a
-    /// promise (FEATURES C2). That is fine here — nothing depends on landing exactly, and the
+    /// promise (FEATURES C2). That is fine here, nothing depends on landing exactly, and the
     /// cycle closing is guaranteed by construction rather than by arithmetic on the way back.
     pub fn step(self, index: u32, distance: i32) -> (i32, i32) {
         let i = index % self.steps();

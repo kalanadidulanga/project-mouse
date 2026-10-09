@@ -1,4 +1,4 @@
-# Feature Specification: M1 — The Wake Engine
+# Feature Specification: M1: The Wake Engine
 
 **Feature Branch**: `001-wake-engine`
 
@@ -6,13 +6,13 @@
 
 **Status**: Draft
 
-**Input**: ROADMAP.md M1. The product's actual purpose — power inhibition, no rules, no UI, no
+**Input**: ROADMAP.md M1. The product's actual purpose, power inhibition, no rules, no UI, no
 input synthesis. Implements FEATURES A1, A3, A5, D1, D4, D5, D6, D8. The `docs/` are the
 authoritative spec; this file scopes M1 and restates only the acceptance criteria.
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 — Keep a machine awake for a task, from the tray (Priority: P1)
+### User Story 1: Keep a machine awake for a task, from the tray (Priority: P1)
 
 A developer starts an overnight build. They left-or-right-click the tray icon and pick **Keep
 running**. The machine no longer sleeps while the build runs; the screen is still free to dim,
@@ -42,7 +42,7 @@ says.
    and the display turns off, **Then** the machine stays awake and a running job continues
    (manual release-checklist test; cannot be automated in CI).
 
-### User Story 2 — Runs from a USB stick, no installer, no admin (Priority: P2)
+### User Story 2: Runs from a USB stick, no installer, no admin (Priority: P2)
 
 An engineer on a locked-down corporate machine copies a single `.exe` to a USB stick, runs it,
 and it starts silently to the tray. It writes no registry keys unless they explicitly enable
@@ -66,7 +66,7 @@ written beside the exe, no admin prompt.
 4. **Given** a second instance is launched, **When** it detects the first, **Then** it signals
    the running instance and exits (single-instance).
 
-### User Story 3 — Trustworthy config and logs (Priority: P3)
+### User Story 3: Trustworthy config and logs (Priority: P3)
 
 The user's profiles and settings survive a power cut mid-save, a corrupted config never silently
 wipes their setup, and a rolling log exists for diagnostics without leaking anything sensitive.
@@ -84,30 +84,30 @@ keeps the file rather than resetting.
    **Then** on next launch the config is either the old or the new complete version, never a
    half-written file.
 2. **Given** a corrupt `config.json`, **When** the app starts, **Then** it surfaces the error and
-   keeps the broken file — it never silently falls back to defaults.
+   keeps the broken file: it never silently falls back to defaults.
 3. **Given** the app is running, **When** events occur (mode changes, errors), **Then** they are
    written to a rolling log file, and cursor coordinates are never logged at `info`.
 
 ### Edge Cases
 
-- **Crash / forced kill while holding a request** — the request must not outlive the process. Clear
+- **Crash / forced kill while holding a request**: the request must not outlive the process. Clear
   it in the exit handler **and** a panic hook; verified clean in `powercfg /requests` after
   `taskkill /F` (M0 confirmed Windows also auto-releases handle-scoped requests, but we do not rely
   on that alone).
-- **Quit from the tray** — must actually quit (not be trapped by the stay-alive `prevent_exit`
+- **Quit from the tray**: must actually quit (not be trapped by the stay-alive `prevent_exit`
   handler, which only fires on last-window-closed).
-- **Two rules/sources want different modes** — the stronger mode wins (Keep presenting > Keep
+- **Two rules/sources want different modes**: the stronger mode wins (Keep presenting > Keep
   running > Off); no source can weaken another. (Groundwork; full rule composition is M2.)
-- **`config.json` directory not writable** (read-only USB) — surface an error, keep running with
+- **`config.json` directory not writable** (read-only USB), surface an error, keep running with
   in-memory state, do not crash.
-- **Autostart entry already present / stale** — toggling is idempotent.
+- **Autostart entry already present / stale**: toggling is idempotent.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001 (A1)**: System MUST expose three mutually exclusive modes — Off, Keep running, Keep
-  presenting — as two independently-persisted states, switchable from the native tray menu with no
+- **FR-001 (A1)**: System MUST expose three mutually exclusive modes, Off, Keep running, Keep
+  presenting: as two independently-persisted states, switchable from the native tray menu with no
   window.
 - **FR-002 (A1)**: Keep running MUST hold `PowerRequestSystemRequired` + `PowerRequestExecutionRequired`;
   Keep presenting MUST additionally hold `PowerRequestDisplayRequired`.
@@ -118,7 +118,7 @@ keeps the file rather than resetting.
 - **FR-005 (A3)**: System MUST release all power requests on every exit path AND in a panic hook;
   a leaked request is a defect.
 - **FR-006 (A3)**: The power request MUST be owned by a single long-lived owner (the scheduler
-  thread), reconciled idempotently against desired state — acquiring the same mode repeatedly is a
+  thread), reconciled idempotently against desired state, acquiring the same mode repeatedly is a
   no-op.
 - **FR-007 (A5)**: Screensaver suppression in Keep presenting MUST come from
   `PowerRequestDisplayRequired` only; the app MUST NOT mutate `SPI_SETSCREENSAVEACTIVE` or any
@@ -135,7 +135,7 @@ keeps the file rather than resetting.
   coordinates at `info`.
 - **FR-013 (D8)**: Config MUST carry a `schema_version` from v1 with a migration chain, be written
   atomically (temp + fsync + replace) and debounced, and MUST surface an error + keep the file on a
-  parse failure — never silently reset.
+  parse failure: never silently reset.
 - **FR-014 (arch)**: All OS calls MUST live behind the `platform/` traits; `core/` MUST contain no
   `#[cfg(windows)]`. A `MockPlatform` MUST exist so the engine is testable without Win32.
 - **FR-015**: The app MUST stay alive with zero windows (tray-only), and the tray Quit item MUST
@@ -158,12 +158,12 @@ Measurable, from ROADMAP M1 exit criteria.
 - **SC-001**: Tray icon with three modes, switchable from the native menu, with no window in
   existence.
 - **SC-002**: Keep running blocks system sleep while allowing display sleep and lock; Keep
-  presenting blocks sleep, display-off, and screensaver — each verified by observed behavior.
+  presenting blocks sleep, display-off, and screensaver, each verified by observed behavior.
 - **SC-003**: `powercfg /requests` shows our reason string with the active mode named.
 - **SC-004**: Quitting via the tray leaves `powercfg /requests` clean; `taskkill /F` also leaves it
   clean.
 - **SC-005**: Config survives a forced power-off mid-write (kill during the debounce window);
-  a corrupt config surfaces an error and keeps the file — it never silently resets.
+  a corrupt config surfaces an error and keeps the file, it never silently resets.
 - **SC-006**: Portable: single exe on a USB stick, config beside it, zero registry writes (verified
   with Process Monitor), runs without admin.
 - **SC-007**: Idle for 10 minutes: CPU ≤ 0.05 %, private working set ≤ 8 MB (measured as private
@@ -176,7 +176,7 @@ Measurable, from ROADMAP M1 exit criteria.
 ## Assumptions
 
 - Windows 10 1809+ / 11 is the only target for M1; macOS/Linux are stubs behind the platform traits.
-- No rules, conditions, UI window, or input synthesis in M1 — those are M2/M3/M4. Mode is set
+- No rules, conditions, UI window, or input synthesis in M1, those are M2/M3/M4. Mode is set
   directly from the tray and persisted.
 - "Portable mode" is detected by the presence of a writable config beside the exe (else
   `%APPDATA%\project-mouse`); exact detection rule finalised in planning.

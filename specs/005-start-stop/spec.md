@@ -1,4 +1,4 @@
-# Feature Specification: M7 — Start/Stop (the app you can see)
+# Feature Specification: M7: Start/Stop (the app you can see)
 
 **Feature Branch**: `005-start-stop` · **Created**: 2026-10-09 · **Status**: Draft
 
@@ -34,13 +34,13 @@ surface**. The same change amends `docs/PRODUCT.md §0`, `docs/UI-UX.md §0.5`,
 
 ## User Scenarios & Testing
 
-### US1 — Open it and see it (P1)
+### US1: Open it and see it (P1)
 Launch the app. A window appears showing **Stopped** and a **Start** button.
 **Independent test:** run the exe with no arguments → a top-level window titled `project-mouse`
 exists. Run it with `--minimized` → no window. Run the exe a second time while it is running →
 the existing window opens or takes focus.
 
-### US2 — Start it and watch it work (P1)
+### US2: Start it and watch it work (P1)
 Press **Start**. The status changes to **Running**, with `Next move in m:ss` underneath. Once
 the PC has had no input for the interval, the cursor traces a small square and returns to where
 it started. Any real mouse or keyboard input resets the countdown. **Test** moves once,
@@ -49,19 +49,19 @@ immediately. **Stop** releases the power request and ends the moves.
 5 s, `GetCursorPos` reads the same before and after the path, and the visible trace shows in a
 screen capture. Press Stop → diagnostics report nothing held by us.
 
-### US3 — Close it and it keeps running (P1)
+### US3: Close it and it keeps running (P1)
 X destroys the window. The app keeps running in the tray. The tray icon is in colour while
 running and grey while stopped. Left-click opens the window. The right-click menu offers
 Start/Stop. Ctrl+Alt+K toggles Start/Stop.
 **Independent test:** Start → X → the window is destroyed, the process is alive, the tray
 tooltip reads `Running`, and moves continue. Tray click → the window comes back.
 
-### US4 — Settings (P2)
+### US4: Settings (P2)
 Move the mouse · Keep the screen on · Distance · What to send · Vary · Start automatically when
 the app opens · Start with Windows · Updates · About. Changes apply immediately, even while
 running.
 
-### US5 — Advanced keeps everything (P3)
+### US5: Advanced keeps everything (P3)
 Profiles, rules, the keep-awake-for timer, "Why is my PC awake?", the effect readout, idle
 clocks, memory, the activity log and the Move Mouse importer all keep their current behaviour
 on one scrolling page.
@@ -106,7 +106,7 @@ on one scrolling page.
   running or idle, and goes through the same filter.
 - **FR-008 Exposed state:** `next_move_in_secs` (none when stopped or when Move the mouse is
   off) and a status kind for Home. The tray tooltip reads
-  `project-mouse — Running · next move in 0:42` or `project-mouse — Stopped`, pushed only when
+  `project-mouse: Running · next move in 0:42` or `project-mouse: Stopped`, pushed only when
   the text changes.
 - **FR-009 Tray:** two icons, colour while running and grey while stopped. Menu: **Start|Stop**
   · Open · ─ · Start with Windows · Check for updates… · ─ · Quit. The Profile submenu shows

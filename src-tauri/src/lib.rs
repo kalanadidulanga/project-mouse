@@ -1,4 +1,4 @@
-//! project-mouse — Start/Stop over a wake engine and an input engine (spec 005). A scheduler thread
+//! project-mouse: Start/Stop over a wake engine and an input engine (spec 005). A scheduler thread
 //! ticks ~1 s: it samples state, evaluates the active profile, reconciles power and runs the input
 //! engine.
 
@@ -32,7 +32,7 @@ use crate::platform::PowerGuard;
 use crate::sampler::Sampler;
 
 /// Panic-hook backstop: `panic = "abort"` skips `Drop`, and `app.exit`/`process::exit` don't run
-/// destructors either — so the request is released explicitly on every path (FR-005).
+/// destructors either, so the request is released explicitly on every path (FR-005).
 static PANIC_GUARD: OnceLock<Arc<dyn PowerGuard>> = OnceLock::new();
 
 /// Set before releasing power on exit, so the scheduler thread stops ticking (and cannot
@@ -116,7 +116,7 @@ fn mode_from_cli(s: &str) -> Option<WakeMode> {
     }
 }
 
-/// `--keep running|presenting|off` from argv — the startup initial mode (D10).
+/// `--keep running|presenting|off` from argv: the startup initial mode (D10).
 fn cli_keep_mode() -> Option<WakeMode> {
     let mut args = std::env::args();
     while let Some(a) = args.next() {
@@ -163,7 +163,7 @@ fn apply_forwarded(app: &tauri::AppHandle, argv: &[String]) {
 }
 
 /// Create the settings window on demand (reusing the declared `create:false` config), or focus it
-/// if it already exists. Destroyed — not hidden — on close (ARCHITECTURE §3).
+/// if it already exists. Destroyed, not hidden, on close (ARCHITECTURE §3).
 fn open_window(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
@@ -191,7 +191,7 @@ fn open_window(app: &tauri::AppHandle) {
 
 /// Every start and stop goes through here (spec 005 FR-003): set the manual mode and bring the
 /// input engine into line, reconcile power now rather than on the next tick (so Stop is
-/// immediate — SC-004), then tell the tray and any open window. Lock order: run → engine → input.
+/// immediate, SC-004), then tell the tray and any open window. Lock order: run → engine → input.
 pub(crate) fn apply_mode(app: &tauri::AppHandle, mode: WakeMode) {
     let settings = *app.state::<SharedRun>().lock().unwrap();
     let snap = app.state::<Arc<Sampler>>().last();
@@ -247,7 +247,7 @@ fn after_change(app: &tauri::AppHandle) {
     }
 }
 
-/// Persist the whole current config — manual mode + the active profile's rules — atomically.
+/// Persist the whole current config: manual mode + the active profile's rules: atomically.
 /// Disabled when the on-disk config was corrupt, so we never overwrite a recoverable file.
 pub(crate) fn persist_current(app: &tauri::AppHandle) {
     let profile = app
@@ -263,8 +263,8 @@ pub(crate) fn persist_current(app: &tauri::AppHandle) {
     if !p.enabled {
         return;
     }
-    // Merge the live profile into the stored collection. Writing `vec![profile]` here — as this
-    // did until 2026-08-28 — destroyed every other profile on the next save (research R3).
+    // Merge the live profile into the stored collection. Writing `vec![profile]` here, as this
+    // did until 2026-08-28, destroyed every other profile on the next save (research R3).
     let all = match app.try_state::<SharedProfiles>() {
         Some(state) => {
             let mut list = state.lock().unwrap();
@@ -350,7 +350,7 @@ async fn check_and_install(app: tauri::AppHandle, auto: bool) {
             tracing::info!("update available: {v}");
             if auto {
                 // Record it and let the tooltip composer pick it up; the UI reads the same flag.
-                // A background check never installs — UPDATES.md §6, "never interrupt".
+                // A background check never installs, UPDATES.md §6, "never interrupt".
                 *UPDATE_AVAILABLE.lock().unwrap() = Some(v.clone());
                 if app.get_webview_window("main").is_some() {
                     let _ = app.emit("state:changed", ());
@@ -509,12 +509,12 @@ pub fn run() {
             ipc::import_move_mouse,
         ])
         .on_window_event(|window, event| {
-            // Destroy the webview on close — never hide (ARCHITECTURE §3). This returns the
+            // Destroy the webview on close, never hide (ARCHITECTURE §3). This returns the
             // ~130 MB of WebView2 processes; the app stays alive via prevent_exit.
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 let _ = window.destroy();
                 // Destroying the webview frees the *child processes*, but our own working set
-                // keeps whatever it grew to — Windows does not hand pages back unprompted.
+                // keeps whatever it grew to, Windows does not hand pages back unprompted.
                 // Measured: 27 MB open, still 28 MB thirty seconds after close without this.
                 // Same trim the app does at startup, once teardown has settled.
                 std::thread::spawn(|| {
@@ -629,7 +629,7 @@ pub fn run() {
             });
 
             // Auto update-check: 10 s after start, then every 6 h. Background checks only *hint*
-            // (tooltip) — never interrupt; the tray 'Check for updates…' item installs (UPDATES.md §6).
+            // (tooltip), never interrupt; the tray 'Check for updates…' item installs (UPDATES.md §6).
             let up = app.handle().clone();
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(10));
@@ -642,7 +642,7 @@ pub fn run() {
                     }
                     // 6 h with up to 30 min of jitter, so a popular release does not produce a
                     // synchronised thundering herd at the top of the hour (UPDATES.md §6). Seeded
-                    // from the tick — no RNG state, and it varies per machine.
+                    // from the tick, no RNG state, and it varies per machine.
                     let jitter = (crate::platform::tick_now() % 1_800) as u64;
                     std::thread::sleep(std::time::Duration::from_secs(6 * 3600 + jitter));
                 }

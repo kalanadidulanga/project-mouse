@@ -23,8 +23,8 @@ pub fn migrate(mut value: Value) -> Result<Config, String> {
     match version {
         0..=2 => {
             // v3 stopped saving whether it was running (`mode`) and replaced the input switch
-            // with Start. If that switch was never on, nobody chose the input settings — they
-            // are v2's invisible defaults — so v3's visible ones replace them. Someone who did
+            // with Start. If that switch was never on, nobody chose the input settings, they
+            // are v2's invisible defaults, so v3's visible ones replace them. Someone who did
             // turn it on keeps what they set (spec 005 FR-014).
             let input_was_on = value
                 .get("input_enabled")

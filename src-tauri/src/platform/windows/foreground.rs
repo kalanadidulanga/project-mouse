@@ -1,6 +1,6 @@
 //! `ForegroundMonitor`: the foreground app's exe name + the one-call notification state
 //! (WINDOWS-API B7/B10). `SHQueryUserNotificationState` covers presentation, fullscreen, game,
-//! and locked/screensaver in a single cheap call — no window-rect heuristics.
+//! and locked/screensaver in a single cheap call, no window-rect heuristics.
 
 use windows::core::PWSTR;
 use windows::Win32::Foundation::{CloseHandle, MAX_PATH};

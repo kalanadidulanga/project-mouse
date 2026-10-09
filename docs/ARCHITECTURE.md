@@ -33,8 +33,8 @@ They differ in kind, not just in risk:
   correctness property is *the right event at the right moment, and never while the user is
   working*.
 
-State reconciliation and event dispatch are different problems. Modelling both as "actions" —
-which an earlier draft of this document did, and which Move Mouse does — leads to a power
+State reconciliation and event dispatch are different problems. Modelling both as "actions",
+which an earlier draft of this document did, and which Move Mouse does, leads to a power
 request that gets re-acquired every tick and released by accident.
 
 **So: the power engine is reconciled once per tick against desired state. The input engine is
@@ -50,7 +50,7 @@ Everything about memory below follows from a single observation:
 > Therefore the UI must not be resident for the other 1438.
 
 Move Mouse's WPF stack is resident 100% of the time. Tauri's webview does not have to be.
-That difference — not the language, not the framework — is where the memory budget comes from.
+That difference, not the language, not the framework, is where the memory budget comes from.
 
 ---
 
@@ -86,7 +86,7 @@ there is exactly one owner and exactly one place that can leak it.
 
 ⚠️ Note what we are *not* using. `SetThreadExecutionState` is the API everything in this
 category reaches for, and it has two problems: its thread affinity is **undocumented folklore**
-(see [WINDOWS-API gotcha 2](WINDOWS-API.md#gotcha-2--setthreadexecutionstate-is-thread-affine)),
+(see [WINDOWS-API gotcha 2](WINDOWS-API.md#gotcha-2-setthreadexecutionstate-is-thread-affine)),
 and on Modern Standby machines with the display off **it does not actually prevent connected
 standby**. `PowerCreateRequest` / `PowerSetRequest` with `PowerRequestExecutionRequired` is the
 path that works, is documented, and shows up in `powercfg /requests` attributed to us by name.
@@ -104,21 +104,21 @@ with no feature flag to drop it. What *is* controllable is whether it ever start
   `#[tauri::command(async)]`) go through `async_runtime::spawn`.
 
 So the rule is: **every `#[tauri::command]` in this app is synchronous.** They are all
-microseconds of work — reading state, toggling a flag — and belong on the main thread anyway.
+microseconds of work, reading state, toggling a flag, and belong on the main thread anyway.
 Do that and no tokio worker threads exist at idle, which is what the CPU budget actually
 depends on.
 
 The one unavoidable exception is the updater, which is async. The moment an update check runs,
 a **multi-threaded** tokio runtime is created for the remaining process lifetime (worker threads
 ≈ CPU count). Mitigation: run update checks on a dedicated `std::thread` with a
-`current_thread` runtime, so the global multi-threaded one is never touched. Measure both ways —
+`current_thread` runtime, so the global multi-threaded one is never touched. Measure both ways,
 this is the single biggest threat to the idle-RAM number after the webview itself.
 
 For our own work, plain `std::thread` plus Win32 waitable timers.
 
 ---
 
-## 3. Window lifecycle — where the memory budget lives
+## 3. Window lifecycle: where the memory budget lives
 
 ```
 App start
@@ -145,16 +145,16 @@ User closes the window
 
 A hidden webview keeps its renderer, GPU, and utility processes alive and its JS heap resident.
 Every "lightweight Tauri app" that measures at 120 MB idle has made exactly this mistake.
-Rebuilding the window costs roughly 180 ms — imperceptible for something opened twice a day.
+Rebuilding the window costs roughly 180 ms, imperceptible for something opened twice a day.
 
-⚠️ **"should", not "does" — this is an assumption, not a documented guarantee.** Tauri's docs
+⚠️ **"should", not "does", this is an assumption, not a documented guarantee.** Tauri's docs
 describe `destroy()` only as *"Similar to `close` but does not emit any events and force close
 the window instead."* There is no statement anywhere in the Tauri documentation about memory or
 resource release on window destruction, and each WebView2 window runs its own browser and GPU
 processes whose shared environment may or may not be torn down with the last webview.
 
 **The entire 8 MB budget rests on this one unverified behaviour.** It is therefore the first
-thing to prototype — before the rule engine, before the UI. A day-one spike that starts a tray
+thing to prototype, before the rule engine, before the UI. A day-one spike that starts a tray
 app, opens a window, destroys it, and reads the working set with Task Manager and VMMap either
 validates the whole architecture or sends us back to Avalonia. Do not write the rule engine
 first and find out later.
@@ -175,12 +175,12 @@ tauri::RunEvent::ExitRequested { api, .. } => api.prevent_exit()
 
 Exit happens only via the tray menu or an explicit command.
 
-### `EmptyWorkingSet` — with a caveat
+### `EmptyWorkingSet`: with a caveat
 
 Calling `EmptyWorkingSet` / `SetProcessWorkingSetSizeEx(-1, -1)` after teardown makes Task
 Manager show a small number immediately. Be honest about what it does: it trims the working
 set, it does not free committed memory, and pages fault back in on next touch. It is cosmetic
-for a process that is genuinely idle. Do it, because users judge by Task Manager — but do not
+for a process that is genuinely idle. Do it, because users judge by Task Manager, but do not
 count it as an optimisation, and never call it on a hot path.
 
 ---
@@ -190,7 +190,7 @@ count it as an optimisation, and never call it on a hot path.
 ```
 src-tauri/src/
 ├── main.rs                  bootstrap, single-instance guard, tray, run loop
-├── ipc/                     Tauri commands + event emitters (thin — no logic)
+├── ipc/                     Tauri commands + event emitters (thin, no logic)
 │
 ├── core/
 │   ├── engine.rs            the tick: sample → evaluate → reconcile → dispatch
@@ -204,10 +204,10 @@ src-tauri/src/
 │   ├── mod.rs               desired-vs-actual reconciliation, one owner
 │   ├── request.rs           PowerCreateRequest handle, reason strings
 │   ├── modes.rs             KeepRunning / KeepPresenting → request sets
-│                             (E1's read lives in platform/windows/inspect.rs — see §8)
+│                             (E1's read lives in platform/windows/inspect.rs, see §8)
 │
 ├── input/                   ← the opt-in engine (FEATURES Part C)
-│   ├── jiggle.rs            virtual jiggle — the default action
+│   ├── jiggle.rs            virtual jiggle, the default action
 │   ├── motion.rs            visible movement, paths
 │   ├── keys.rs              keystrokes, chords
 │   ├── verify.rs            did the idle timer actually move? (C7)
@@ -248,7 +248,7 @@ the engine testable without a Tauri runtime and makes a future headless/CLI mode
 ## 5. The rule engine
 
 The whole product is one data model. Every feature in FEATURES.md is a composition of these
-three enums — there is no special-case code path for "the Teams feature" or "the gaming
+three enums, there is no special-case code path for "the Teams feature" or "the gaming
 feature".
 
 ```rust
@@ -263,7 +263,7 @@ pub struct Rule {
 }
 ```
 
-### Triggers — *when to consider acting*
+### Triggers: *when to consider acting*
 
 | Trigger | Fields |
 |---|---|
@@ -271,13 +271,13 @@ pub struct Rule {
 | `Idle` | `threshold: Duration`, `repeat_every: Option<Duration>` |
 | `ProcessStarted` / `ProcessStopped` | `name: String` |
 | `ForegroundChanged` | `to: Option<String>` |
-| `SessionUnlocked` / `SessionLocked` | — |
-| `ResumedFromSleep` | — |
+| `SessionUnlocked` / `SessionLocked` | - |
+| `ResumedFromSleep` | - |
 | `Hotkey` | `combo: HotkeyCombo` |
-| `AppStartup` | — |
-| `Manual` | — |
+| `AppStartup` | - |
+| `Manual` | - |
 
-### Conditions — *whether acting is currently allowed*
+### Conditions: *whether acting is currently allowed*
 
 Guards, not triggers. Evaluated at fire time, cheap, side-effect free.
 
@@ -286,7 +286,7 @@ Guards, not triggers. Evaluated at fire time, cheap, side-effect free.
 | `ProcessRunning(name)` / `ProcessNotRunning(name)` | cached snapshot, refreshed every 5 s |
 | `ForegroundAppIn(list)` / `ForegroundAppNotIn(list)` | the "ignore Photoshop" feature |
 | `TimeWindow { days, from, to }` | schedule |
-| `UserNotificationState(allowed)` | fullscreen / presentation / **locked or screensaver** — see below |
+| `UserNotificationState(allowed)` | fullscreen / presentation / **locked or screensaver**, see below |
 | `CpuBelow(percent)` | |
 | `BatteryAbove(percent)` / `OnACPower` | |
 | `SessionUnlocked` | |
@@ -299,17 +299,17 @@ Guards, not triggers. Evaluated at fire time, cheap, side-effect free.
 or `QUNS_ACCEPTS_NOTIFICATIONS` (normal).
 
 That single call covers "pause while gaming", "pause during presentations", "pause during
-fullscreen video", *and* "is the screen locked" — four separate features on the Move Mouse list
-— correctly and for the cost of one Shell call. Do not reimplement any of them by comparing
+fullscreen video", *and* "is the screen locked" (four separate features on the Move Mouse list)
+correctly and for the cost of one Shell call. Do not reimplement any of them by comparing
 window rectangles to monitor rectangles; that heuristic misfires on borderless windows and on
 multi-monitor setups. Full value table and the quiet-time precedence rule in
 [WINDOWS-API](WINDOWS-API.md).
 
-### Actions — *what to do*
+### Actions: *what to do*
 
 **Split by engine**, because the two halves behave differently.
 
-**Held state** — declared, not dispatched. A rule whose conditions hold contributes its
+**Held state**: declared, not dispatched. A rule whose conditions hold contributes its
 `WakeMode` to the desired state; the engine reconciles the union of all contributions against
 what is currently held, once per tick.
 
@@ -320,29 +320,29 @@ what is currently held, once per tick.
 That is the entire power surface. It is small on purpose: everything interesting about it lives
 in the *conditions*, which is the whole thesis of the product.
 
-**Dispatched events** — fired once, in order, by the executor thread.
+**Dispatched events**: fired once, in order, by the executor thread.
 
 | Action | Fields |
 |---|---|
-| `VirtualJiggle` | — · **the default when input is enabled** |
+| `VirtualJiggle` | - · **the default when input is enabled** |
 | `MoveRelative` | `dx, dy` |
 | `MoveToRandom` | `bounds: MonitorSelector` |
 | `MoveAlongPath` | `path: PathKind` |
-| `ReturnToOrigin` | — |
+| `ReturnToOrigin` | - |
 | `Click` | `button, count` |
 | `Scroll` | `delta` |
-| `KeyPress` | `key: VirtualKey` — default `VK_F15` |
+| `KeyPress` | `key: VirtualKey`, default `VK_F15` |
 | `KeyCombo` | `Vec<VirtualKey>` |
 | `Wait` | `Duration` |
 | `SwitchProfile` | `profile_id` |
 | `Notify` | `text` |
-| `RunCommand` | `path, args` — M6, confirmed once per distinct command |
+| `RunCommand` | `path, args`, M6, confirmed once per distinct command |
 
 ⚠️ Every dispatched action is gated at the engine boundary by the global input-synthesis
 switch. There is exactly one place that checks it, and it is not in the UI.
 
 **Default key choice matters.** Move Mouse and most jigglers default to `Shift` or `Scroll Lock`.
-`Shift` is not inert — it modifies whatever has focus, and a stray `Shift` into a text field or
+`Shift` is not inert, it modifies whatever has focus, and a stray `Shift` into a text field or
 a game is a real bug. `Scroll Lock` toggles a real keyboard LED. `VK_F15` (0x7E) is the correct
 default: a valid virtual key that resets the idle timer and that essentially no application
 binds. Offer the others; do not default to them.
@@ -385,7 +385,7 @@ Three things about phase 1 worth stating explicitly:
   wants `KeepPresenting`, the machine keeps presenting. A rule can never *weaken* what another
   rule is holding.
 - **The reason string is recomputed** whenever the contributing rule set changes, so
-  `powercfg /requests` always shows why the lock is currently held — see
+  `powercfg /requests` always shows why the lock is currently held, see
   [FEATURES A3](FEATURES.md#a3-handle-scoped-self-releasing-auditable).
 
 And phase 2 has a guard phase 1 does not: **the stand-down check runs before any rule is
@@ -393,7 +393,7 @@ considered**, so returning to the keyboard cancels everything at once rather tha
 
 Cheap sampling is a handful of Win32 calls costing single-digit microseconds. Process
 enumeration is the only expensive part (`CreateToolhelp32Snapshot` is ~1–3 ms on a typical
-machine) — hence the 5-second cadence and the cached snapshot.
+machine), hence the 5-second cadence and the cached snapshot.
 
 ---
 
@@ -410,7 +410,7 @@ idle 3 min  →  rule fires  →  SendInput  →  idle resets to 0
 
 That is the intended behaviour for a jiggler. But it breaks *every* rule that means
 "do this only while the user is genuinely away", and it breaks "pause immediately when the
-user comes back" — the app can never tell that the user returned, because it keeps
+user comes back", the app can never tell that the user returned, because it keeps
 manufacturing input that looks identical.
 
 The fix, since `LLMHF_INJECTED` is only observable from a low-level hook (which is out of
@@ -436,8 +436,8 @@ match self.injected_at {
 
 The engine then exposes **two** clocks:
 
-- `system_idle_ms` — what Windows/Teams/the screensaver sees. Used for keep-awake logic.
-- `human_idle_ms` — what the *user* actually did. Used for every rule and for auto-pause.
+- `system_idle_ms`: what Windows/Teams/the screensaver sees. Used for keep-awake logic.
+- `human_idle_ms`: what the *user* actually did. Used for every rule and for auto-pause.
 
 Every condition and trigger in the model above uses `human_idle_ms`. Getting this wrong
 produces a tool that cannot be interrupted, which is the number one complaint about every
@@ -446,9 +446,9 @@ jiggler on the market.
 ### The same mechanism detects that injection is failing
 
 Once both clocks exist, a third thing falls out for free. After injecting, `system_idle_ms`
-**must** have reset. If it did not, the injection went nowhere — which is exactly what happens
+**must** have reset. If it did not, the injection went nowhere, which is exactly what happens
 under UIPI, where `SendInput` reports success and Windows silently discards the input (see
-[WINDOWS-API gotcha 3](WINDOWS-API.md#gotcha-3--sendinput-fails-undetectably-under-uipi)).
+[WINDOWS-API gotcha 3](WINDOWS-API.md#gotcha-3-sendinput-fails-undetectably-under-uipi)).
 
 ```rust
 // immediately after an action that should have reset the idle timer
@@ -461,14 +461,14 @@ Move Mouse arrived at this same technique in v4.16.3 after years of support traf
 warning. **We surface it as a first-class UI state**, because a warning in a log the user must
 first enable is not an answer to "it's running but nothing happens."
 
-This also diagnoses the inverse problem — the well-documented NVIDIA GeForce Experience bug
+This also diagnoses the inverse problem, the well-documented NVIDIA GeForce Experience bug
 where the system idle timer resets to zero constantly, making everything idle-dependent
 (screensavers included) believe a user is present when nobody is. With both clocks on screen
 that is visible in one glance instead of being a two-week support thread.
 
 ---
 
-## 7. Timing — how idle CPU stays at ~0.00%
+## 7. Timing: how idle CPU stays at ~0.00%
 
 Not `thread::sleep` in a loop, and not an async runtime.
 
@@ -512,7 +512,7 @@ Two more things in the same spirit:
 ### State
 
 One `RwLock<AppState>` in `core::state`. Writers are the scheduler and IPC commands; readers
-are everything. On mutation, emit a `state:changed` Tauri event — but **only if a window
+are everything. On mutation, emit a `state:changed` Tauri event, but **only if a window
 exists**. Emitting into the void when no webview is alive is a pure waste, and at one tick
 per second it adds up.
 
@@ -540,7 +540,7 @@ Commands (UI → core)
   trigger_rule_now(id)          // manual trigger
   pause_all(Option<Duration>) / resume_all()
   get_logs(limit) -> Vec<LogEntry>
-  get_diagnostics() -> Diagnostics   // idle clocks, RSS, tick timing — for the About page
+  get_diagnostics() -> Diagnostics   // idle clocks, RSS, tick timing, for the About page
 
 Events (core → UI)
   state:changed
@@ -558,18 +558,18 @@ endpoint behind [FEATURES E2](FEATURES.md#e2-live-idle-clocks) and
 `why_awake` deserves a note, because it changed shape once it met the OS.
 
 The design was `power::inspect` enumerating the power requests held by **other** processes, and
-naming them — which is what [FEATURES E1](FEATURES.md#e1-why-is-my-pc-awake) describes. Measured
+naming them, which is what [FEATURES E1](FEATURES.md#e1-why-is-my-pc-awake) describes. Measured
 on Windows 11 26200, unelevated, that is not available to us:
 `CallNtPowerInformation(GetPowerRequestList)` returns `STATUS_INVALID_PARAMETER` at every buffer
 size while sibling information levels succeed, and `powercfg /requests` refuses to run at all
 without an elevated prompt. Since this app never asks for admin, there is nothing to enumerate.
 
-What **is** readable unelevated is `CallNtPowerInformation(SystemExecutionState)` — an
+What **is** readable unelevated is `CallNtPowerInformation(SystemExecutionState)`, an
 `EXECUTION_STATE` aggregate. It cannot be netted against our own request: whether a
 `PowerSetRequest` handle even appears in it could not be verified, so subtracting would risk
 suppressing a real third-party request exactly when we hold the same kind. The panel therefore
-reports two things side by side — what we hold (known exactly) and what Windows will show an
-unelevated process (verbatim, labelled a hint rather than an inventory) — and hands over the
+reports two things side by side, what we hold (known exactly) and what Windows will show an
+unelevated process (verbatim, labelled a hint rather than an inventory), and hands over the
 elevated command that will name the holder.
 
 So the read is a **platform capability behind a trait** (`PowerInspector`), not a power-engine
@@ -585,7 +585,7 @@ who never turns the main function on. Full measurements:
 `tracing` with two sinks:
 
 - **Rolling file**, `info` by default, 1 MB × 3 files. Never log injected coordinates at
-  `info` — a log of everywhere the cursor went is a privacy problem in a file users will
+  `info`: a log of everywhere the cursor went is a privacy problem in a file users will
   attach to bug reports.
 - **In-memory ring buffer**, 500 entries, for the live log view in the UI. The UI reads the
   ring buffer; it does not tail the file.
@@ -617,11 +617,11 @@ this app at all.
 
 The budgets in the README are only real if they are enforced:
 
-- **Unit** — the rule engine with an injected fake `platform` implementation. Trigger firing,
+- **Unit**: the rule engine with an injected fake `platform` implementation. Trigger firing,
   condition evaluation, cooldowns, and the self-injection filter are all pure logic and should
   be tested without touching Win32.
-- **Integration** — a headless build that runs the engine with a recording injector, so a rule
+- **Integration**: a headless build that runs the engine with a recording injector, so a rule
   set can be asserted end to end.
-- **Benchmark, in CI** — launch the release binary, idle 10 minutes, sample working set and
+- **Benchmark, in CI**: launch the release binary, idle 10 minutes, sample working set and
   CPU time, fail the build on regression against the README table. A performance promise with
   no gate on it becomes false within three months.

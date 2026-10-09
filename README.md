@@ -12,7 +12,7 @@ It does not change your power plan, and it releases everything on exit. Monitori
 detect simulated input. With *Move the mouse* off (Settings) it sends no input at all, and then
 it cannot defeat a screen lock or a chat presence indicator.
 
-*(`project-mouse` is a working title — see [PRODUCT.md §9](docs/PRODUCT.md#9-the-name).)*
+*(`project-mouse` is a working title, see [PRODUCT.md §9](docs/PRODUCT.md#9-the-name).)*
 
 The rest of this README explains the engine underneath.
 
@@ -38,7 +38,7 @@ that should have asserted a wake lock and didn't.
 
 ## Two modes, not one toggle
 
-Most tools in this category have a single switch, and users complain in **both** directions —
+Most tools in this category have a single switch, and users complain in **both** directions:
 "it won't let my screen sleep" and "my screen slept when I told it not to." Those are two
 different needs, so there are two states, held independently:
 
@@ -53,7 +53,7 @@ different needs, so there are two states, held independently:
 
 ### 1. Modern Standby is broken in every competing tool
 
-`SetThreadExecutionState` — the API almost everything uses — only resets idle timers. On a
+`SetThreadExecutionState` (the API almost everything uses) only resets idle timers. On a
 Modern Standby (S0) machine with the display off, it **fails to prevent connected standby.**
 The correct call is `PowerSetRequest` with `PowerRequestExecutionRequired`.
 
@@ -71,7 +71,7 @@ On macOS, [Amphetamine](https://apps.apple.com/us/app/amphetamine/id937984704) c
 network*, *while CPU is above a threshold*, *until a set time*. On Windows, nothing comes close.
 
 The most-requested and least-shipped feature across every issue tracker in this category is
-some version of **"only when I actually need it"** —
+some version of **"only when I actually need it"**:
 [bind to a process](https://github.com/microsoft/PowerToys/issues/27980) ·
 [bind to a schedule](https://github.com/microsoft/PowerToys/issues/42720) ·
 bind to an expiry time · bind to a network. Users are explicit that they do not want *always
@@ -82,8 +82,8 @@ Conditionality is the product.
 
 ### 3. Nobody can tell you why their PC is awake
 
-[PowerToys #44501](https://github.com/microsoft/powertoys/issues/44501) — *"Awake? I'd prefer
-Asleep!"* — asks for the inverse feature. `powercfg /requests` answers it, and essentially no
+[PowerToys #44501](https://github.com/microsoft/powertoys/issues/44501), *"Awake? I'd prefer
+Asleep!"*, asks for the inverse feature. `powercfg /requests` answers it, and essentially no
 normal user knows that command exists.
 
 A panel that lists every process currently holding a power request, in plain language, with the
@@ -94,8 +94,8 @@ on.
 
 ## Budgets
 
-Not vanity. On locked-down machines — precisely the machines with the worst version of this
-problem — *no installer, no runtime, single file, runs from a USB stick, works without admin*
+Not vanity. On locked-down machines, precisely the machines with the worst version of this
+problem, *no installer, no runtime, single file, runs from a USB stick, works without admin*
 is decisive. The nearest competitors are 267 KB (Don't Sleep) and 306 KB (Caffeine); the
 heaviest ships 134 MB.
 
@@ -104,7 +104,7 @@ CI fails if these regress.
 | Metric | Target |
 |---|---|
 | Idle private working set, tray only, no window | **≤ 8 MB** |
-| With the settings window open | ≤ 150 MB, transient — the webview is destroyed on close |
+| With the settings window open | ≤ 150 MB, transient: the webview is destroyed on close |
 | Idle CPU averaged over 10 min | **≤ 0.05 %** |
 | Installed size | ≤ 8 MB |
 | Cold start to tray icon | ≤ 250 ms |
@@ -118,21 +118,21 @@ CI fails if these regress.
 | Layer | Choice | Why |
 |---|---|---|
 | Core | Rust 2021 | No runtime, no GC, predictable footprint |
-| Shell | Tauri v2 | Tray, updater, packaging — without shipping a browser |
+| Shell | Tauri v2 | Tray, updater, packaging: without shipping a browser |
 | OS bindings | `windows` crate | Direct Win32, no marshalling layer |
 | UI | React + TypeScript | Loaded only when a window exists |
 | Config | JSON, atomic write | The whole dataset is tens of KB; SQLite would cost ~1 MB of binary for nothing |
 | Logging | `tracing` + rolling file | Off at `debug` by default |
 
 **The load-bearing idea:** the settings window is open about two minutes a day, so the webview
-is created on demand and **destroyed** on close — never hidden. That single discipline is where
+is created on demand and **destroyed** on close: never hidden. That single discipline is where
 the 8 MB comes from.
 
 ⚠️ It also rests on behaviour Tauri does not document. **Measure it before building anything
-else** — see [ROADMAP.md](docs/ROADMAP.md) M0.
+else**: see [ROADMAP.md](docs/ROADMAP.md) M0.
 
 Rejected: WinUI 3 (60–120 MB idle, heaviest of all despite looking modern), WPF (35–70 MB
-floor, no NativeAOT), Avalonia (~30–50 MB — the best .NET option and a real fallback, but it
+floor, no NativeAOT), Avalonia (~30–50 MB: the best .NET option and a real fallback, but it
 only ties the incumbent rather than beating it), Electron (not seriously considered).
 
 Cross-platform is deliberately *not* v1, but the platform boundary is defined from commit one.
@@ -156,7 +156,7 @@ neither is achievable.
 3. **It will never describe itself as undetectable.** It is detectable, by design, and by
    commercial products that
    [ship jiggler detection as a feature](https://support.activtrak.com/hc/en-us/articles/4406765537563-Detect-Mouse-Jigglers-and-Other-Activity-Mimicking-Tools).
-   Any feature that only makes sense as detection evasion does not ship —
+   Any feature that only makes sense as detection evasion does not ship;
    see [PRODUCT.md §5](docs/PRODUCT.md#5-the-line).
 4. **No global input hooks.** `SetWindowsHookEx` adds latency to every system keystroke and is
    the strongest single heuristic antivirus engines use to classify something as a keylogger.
@@ -175,7 +175,7 @@ a description of a RAT. Plan for the friction.
 
 **A correction to the received wisdom:** since 2024, **EV certificates no longer bypass
 SmartScreen.** Microsoft's own guidance now places EV, OV, and Azure Artifact Signing in the
-same bucket — reputation accrues per file hash over time. No amount of money buys instant trust.
+same bucket; reputation accrues per file hash over time. No amount of money buys instant trust.
 
 | Option | Cost | Notes |
 |---|---|---|
@@ -192,7 +192,7 @@ Alongside: submit each signed release to the
 *before* shipping; ship a winget manifest; publish reproducible build instructions and the
 release SHA. For a tool in this category, verifiability is the marketing.
 
-**Defaulting to power inhibition is also the best antivirus mitigation available** — a tool
+**Defaulting to power inhibition is also the best antivirus mitigation available**: a tool
 whose default behaviour is a documented Windows API call has far less reason to be flagged than
 one whose default is injecting HID events.
 
@@ -206,7 +206,7 @@ that time out mid-task, lab instruments whose acquisition breaks if the machine 
 and people who read slowly enough that their screen keeps locking on them.
 
 It can also be used to fake presence to an employer. That is between the user and their
-acceptable-use policy, and this project takes no position on it — but the README will not
+acceptable-use policy, and this project takes no position on it; but the README will not
 pretend the tool is something other than what it is, and nothing in the software is designed to
 help with that specific goal.
 
@@ -235,7 +235,7 @@ Read in this order.
 | [PRODUCT.md](docs/PRODUCT.md) | **Start here.** The three mechanisms, who actually needs this, competitors, and the line we don't cross. |
 | [FEATURES.md](docs/FEATURES.md) | The feature spec, with feasibility flags and priorities |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Process model, rule engine, memory discipline |
-| [ROADMAP.md](docs/ROADMAP.md) | Milestones with acceptance criteria — where development starts |
+| [ROADMAP.md](docs/ROADMAP.md) | Milestones with acceptance criteria: where development starts |
 | [UI-UX.md](docs/UI-UX.md) | Interaction model, motion budget, why not a radial menu |
 | [WINDOWS-API.md](docs/WINDOWS-API.md) | Win32 mapping and twelve gotchas that will otherwise cost days |
 | [TAURI-V2.md](docs/TAURI-V2.md) | Framework config, and the parts Tauri does not document |

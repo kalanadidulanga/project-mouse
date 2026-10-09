@@ -3,12 +3,12 @@
 Every milestone has **exit criteria that can be checked**, not a feature list. A milestone is
 done when someone other than the author could verify it.
 
-The ordering is not by feature importance. It is by **what invalidates what** — the things that
+The ordering is not by feature importance. It is by **what invalidates what**: the things that
 could send us back to a different stack come first.
 
 ---
 
-## M0 — The spike
+## M0: The spike
 
 **1–2 days. ⚠️ Blocks everything.**
 
@@ -26,13 +26,13 @@ destruction, and each WebView2 window runs its own browser and GPU processes who
 environment may or may not be torn down with the last webview.
 
 The entire ≤8 MB budget rests on this. See
-[ARCHITECTURE §3](ARCHITECTURE.md#3-window-lifecycle--where-the-memory-budget-lives).
+[ARCHITECTURE §3](ARCHITECTURE.md#3-window-lifecycle-where-the-memory-budget-lives).
 
 **2. Does `PowerRequestExecutionRequired` actually hold a Modern Standby machine awake?**
 
 This is the flagship feature and the thing every competitor gets wrong. It cannot be verified
-in CI — it needs a real S0 laptop with the lid closed.
-See [WINDOWS-API gotcha 0](WINDOWS-API.md#gotcha-0--setthreadexecutionstate-does-not-prevent-modern-standby).
+in CI: it needs a real S0 laptop with the lid closed.
+See [WINDOWS-API gotcha 0](WINDOWS-API.md#gotcha-0-setthreadexecutionstate-does-not-prevent-modern-standby).
 
 ### Exit criteria
 
@@ -43,7 +43,7 @@ See [WINDOWS-API gotcha 0](WINDOWS-API.md#gotcha-0--setthreadexecutionstate-does
 | 3 | Repeat open/destroy 20 times | no upward drift |
 | 4 | Same cycle using `hide()` instead, for comparison | documented, so the difference is on record |
 | 5 | S0 laptop: `PowerRequestSystemRequired` + `ExecutionRequired`, lid closed, 8 h | still reachable; a running job completed |
-| 6 | Same test with `SetThreadExecutionState` instead | documented — this is the bug every competitor has |
+| 6 | Same test with `SetThreadExecutionState` instead | documented, this is the bug every competitor has |
 | 7 | `powercfg /requests` while holding | shows our reason string, attributed to us |
 | 8 | Kill the process with Task Manager, then `powercfg /requests` | clean; no leaked request |
 
@@ -62,7 +62,7 @@ pick this stack" answer for the next person who asks.
 
 ---
 
-## M1 — The wake engine (1–2 weeks)
+## M1: The wake engine (1–2 weeks)
 
 The product's actual purpose. No rules, no UI, no input synthesis.
 
@@ -81,7 +81,7 @@ Referencing [FEATURES](FEATURES.md): A1, A3, A5, D1, D4, D5, D6, D8.
 - [ ] Quit via the tray → `powercfg /requests` clean.
 - [ ] `taskkill /F` → `powercfg /requests` clean.
 - [ ] Config survives a forced power-off mid-write (test with a kill during the debounce window).
-- [ ] A corrupt config surfaces an error and keeps the file — it never silently resets.
+- [ ] A corrupt config surfaces an error and keeps the file: it never silently resets.
 - [ ] Portable: single exe on a USB stick, config beside it, **zero registry writes**, runs
       without admin. Verify with Process Monitor.
 - [ ] Idle for 10 minutes: CPU ≤ 0.05 %, working set ≤ 8 MB.
@@ -91,7 +91,7 @@ will not sleep with no visible cause and no running app to explain it.
 
 ---
 
-## M2 — Conditions (2–3 weeks)
+## M2: Conditions (2–3 weeks)
 
 The reason to build this rather than use PowerToys Awake.
 
@@ -103,7 +103,7 @@ Referencing [FEATURES](FEATURES.md): B1, B2, B3, B5, B6, B7, B10, B12, D2, D3.
 ### Exit criteria
 
 - [ ] `--while-process msbuild.exe` holds while it runs, releases within 5 s of it exiting.
-- [ ] Process matching survives a **PID change** — the process exits and respawns under a new
+- [ ] Process matching survives a **PID change**: the process exits and respawns under a new
       PID, and the lock is held continuously. This is the specific case
       [PowerToys #27980](https://github.com/microsoft/PowerToys/issues/27980) reports.
 - [ ] Expiry releases at the stated time; the remaining time is visible in the tooltip.
@@ -113,13 +113,13 @@ Referencing [FEATURES](FEATURES.md): B1, B2, B3, B5, B6, B7, B10, B12, D2, D3.
       `SHQueryUserNotificationState` and act as configured.
 - [ ] Two rules wanting different modes → the machine holds the **stronger** one. A rule can
       never weaken what another holds.
-- [ ] The rule engine is fully unit-tested against a `MockPlatform` — no Win32 calls in the
+- [ ] The rule engine is fully unit-tested against a `MockPlatform`, no Win32 calls in the
       test suite.
 - [ ] Global hotkey toggles without any window existing.
 
 ---
 
-## M3 — The UI (2–3 weeks)
+## M3: The UI (2–3 weeks)
 
 **Scope:** the settings window, per [UI-UX.md](UI-UX.md) and the
 [mockup](https://claude.ai/code/artifact/9551d990-b62a-463f-9937-34bbd7eecf4c) · rule builder ·
@@ -135,7 +135,7 @@ Referencing [FEATURES](FEATURES.md): E1, E2, E3, E4.
 - [ ] Rule builder round-trips: build a rule in the UI, verify the JSON, reload, unchanged.
 - [ ] **"Why is my PC awake?"** lists other processes' power requests, and says plainly when
       the list is partial because we are not elevated.
-- [ ] Both idle clocks visible and correct — verify against `powercfg /requests` and a manual
+- [ ] Both idle clocks visible and correct: verify against `powercfg /requests` and a manual
       stopwatch.
 - [ ] Full keyboard navigation; visible focus on every control; no `outline: none`.
 - [ ] Renders correctly in Windows High Contrast mode.
@@ -144,7 +144,7 @@ Referencing [FEATURES](FEATURES.md): E1, E2, E3, E4.
 
 ---
 
-## M4 — The input engine (2 weeks)
+## M4: The input engine (2 weeks)
 
 Off by default. Everything here is gated behind one explicit user choice.
 
@@ -160,7 +160,7 @@ Referencing [FEATURES](FEATURES.md): C1, C2, C3, C5, C6, C7, B11, B4, D7.
 - [ ] **Virtual jiggle is the default action.** The system idle timer resets; the visible cursor
       does not move by a single pixel. Verify with a screen recording.
 - [ ] **Stand-down**: real input cancels an in-flight sequence within 250 ms.
-- [ ] The self-injection filter is correct — `human_idle_ms` keeps counting up while the app is
+- [ ] The self-injection filter is correct, `human_idle_ms` keeps counting up while the app is
       jiggling. This is the test that proves the tool can be interrupted at all.
 - [ ] **Blocked detection**: focus an elevated window, confirm the idle timer does not reset,
       confirm the tray icon and tooltip both report Blocked.
@@ -173,7 +173,7 @@ Referencing [FEATURES](FEATURES.md): C1, C2, C3, C5, C6, C7, B11, B4, D7.
 
 ---
 
-## M5 — Ship (2 weeks)
+## M5: Ship (2 weeks)
 
 **Scope:** signing · installer · updates · CI gates.
 
@@ -181,31 +181,31 @@ Referencing [FEATURES](FEATURES.md): D10, D11. See [UPDATES.md](UPDATES.md).
 
 ### Exit criteria
 
-- [ ] NSIS installer, `installMode: currentUser` — installs and updates with **no UAC prompt**.
+- [ ] NSIS installer, `installMode: currentUser`, installs and updates with **no UAC prompt**.
 - [ ] Update flow end to end: background download, tray affordance, restart, new version
       running. Test from a genuinely older installed build, not a simulated one.
 - [ ] `on_before_exit` releases the power request before the installer force-exits the app.
-- [ ] Updater endpoint on our own domain, GitHub as fallback. **Test the 204 path** — a bug
+- [ ] Updater endpoint on our own domain, GitHub as fallback. **Test the 204 path**: a bug
       there silently freezes every user on their current version.
 - [ ] Minisign private key backed up offline, in two places, verified restorable.
-- [ ] Signed — [SignPath Foundation](https://signpath.org/) application submitted, and the repo
+- [ ] Signed, [SignPath Foundation](https://signpath.org/) application submitted, and the repo
       satisfies its conditions: OSI license, MFA, published signing policy, reproducible build.
 - [ ] Submitted to the Microsoft Defender false-positive portal **before** release.
 - [ ] winget manifest.
 - [ ] **CI budget gate**: launch the release binary, idle 10 min, sample working set and CPU
       time, fail the build on regression against the M0 numbers.
-- [ ] Release checklist includes the **manual S0 test** — it cannot be automated.
+- [ ] Release checklist includes the **manual S0 test**: it cannot be automated.
 - [ ] Download page carries a screenshot of the SmartScreen warning and an explanation.
 
 ---
 
-## M6 — Extend (open-ended)
+## M6: Extend (open-ended)
 
 Ordered by ratio of demand to effort.
 
 | | Feature | Why here |
 |---|---|---|
-| 1 | **CLI** (D10) | Makes the tool scriptable into build pipelines and agent hooks — the fastest-growing use case in the category, and cheap |
+| 1 | **CLI** (D10) | Makes the tool scriptable into build pipelines and agent hooks: the fastest-growing use case in the category, and cheap |
 | 2 | **Move Mouse importer** (D9) | Removes the only real reason an existing user would not switch. Schema in [MOVE-MOUSE.md](MOVE-MOUSE.md) |
 | 3 | **Load binding** (B4) | CPU and network thresholds. Only Don't Sleep has this on Windows |
 | 4 | **Block shutdown** (A4) | Don't Sleep's differentiator. Time-bounded and overridable, or not at all |
@@ -229,7 +229,7 @@ not milestones; they are conditions on every commit.
    watches your input must not phone home, and the moment there is a reporting path someone will
    want to extend it.
 5. **Honest naming.** If a feature cannot be described accurately in a UI string, it does not
-   ship — see [PRODUCT.md §5](PRODUCT.md#5-the-line).
+   ship; see [PRODUCT.md §5](PRODUCT.md#5-the-line).
 
 ## And one decision to make before M5
 

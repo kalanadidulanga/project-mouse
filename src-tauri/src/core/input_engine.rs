@@ -36,7 +36,7 @@ fn default_distance() -> u16 {
 }
 
 impl Default for InputSettings {
-    /// A visible 10 px square after a minute with no input — what someone arriving from Move
+    /// A visible 10 px square after a minute with no input: what someone arriving from Move
     /// Mouse expects to see (spec 005; FEATURES Part C, amended).
     fn default() -> Self {
         Self {
@@ -163,7 +163,7 @@ impl InputEngine {
                 tracing::warn!("injection failed: {e}");
             }
         }
-        // C5: vary once per cycle, so the countdown is steady. Seeded from the tick — no RNG state.
+        // C5: vary once per cycle, so the countdown is steady. Seeded from the tick, no RNG state.
         self.cycle_ms = motion::vary(self.interval_ms, self.vary_pct as u32, now);
     }
 
@@ -337,7 +337,7 @@ mod tests {
         e.set_enabled(true);
         e.tick(0, 300_000);
         e.tick(300_200, 301_000);
-        e.tick(301_000, 301_500); // 800 ms after the path ended — that is a person
+        e.tick(301_000, 301_500); // 800 ms after the path ended, that is a person
         assert_eq!(e.human_idle_ms, 500);
     }
 

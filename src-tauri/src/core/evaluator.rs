@@ -1,4 +1,4 @@
-//! Pure condition evaluation. Every branch is testable by hand-building a `Snapshot` — the whole
+//! Pure condition evaluation. Every branch is testable by hand-building a `Snapshot`, the whole
 //! point of the Snapshot boundary (constitution V).
 
 use crate::core::modes::WakeMode;
@@ -190,7 +190,7 @@ mod tests {
         assert!(wd.eval(&s));
         s.minutes = 19 * 60;
         assert!(!wd.eval(&s));
-        s.weekday = 5; // Sat — not in days
+        s.weekday = 5; // Sat, not in days
         s.minutes = 10 * 60;
         assert!(!wd.eval(&s));
     }

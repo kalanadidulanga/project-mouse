@@ -1,16 +1,16 @@
-# Auto-update — VS Code style, at zero cost
+# Auto-update: VS Code style, at zero cost
 
 **Yes, this is fully possible and completely free.** Tauri v2 ships an updater plugin; GitHub
 Releases hosts the binaries on a CDN with no bandwidth cost for public repositories; GitHub
 Actions builds and signs them with unlimited free minutes for public repos.
 
-The one thing that is *not* free is Windows Authenticode signing — a separate concern from
-update signing. See [README §Distribution reality check](../README.md#distribution-reality-check).
+The one thing that is *not* free is Windows Authenticode signing, a separate concern from
+update signing. See [README §Distribution reality check](../README.md#distribution).
 Updates work perfectly without it; they just carry a SmartScreen warning on first install.
 
 ---
 
-## 1. Two different signatures — don't confuse them
+## 1. Two different signatures: don't confuse them
 
 This trips people up constantly, so before anything else:
 
@@ -18,7 +18,7 @@ This trips people up constantly, so before anything else:
 |---|---|---|
 | **Tool** | `tauri signer` (minisign) | Authenticode / `signtool` |
 | **Cost** | **Free** | Free via SignPath Foundation, else $150–300/yr |
-| **Purpose** | Proves an update came from you — blocks a MITM pushing malware to installed users | Stops SmartScreen / "Unknown publisher" at install time |
+| **Purpose** | Proves an update came from you, blocks a MITM pushing malware to installed users | Stops SmartScreen / "Unknown publisher" at install time |
 | **Optional?** | **No.** Tauri cannot disable signature verification. | Technically yes, practically no |
 | **Lose the key?** | **You can never ship an update to existing users again.** | Buy a new certificate |
 
@@ -34,7 +34,7 @@ npm run tauri signer generate -- -w ~/.tauri/project-mouse.key
   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 
 > ⚠️ **Back the private key up somewhere offline, today.** Losing it does not mean "regenerate
-> and carry on" — every already-installed copy verifies against the old public key baked into
+> and carry on": every already-installed copy verifies against the old public key baked into
 > its binary. Losing it strands every existing user permanently, with no recovery path other
 > than asking them all to manually reinstall.
 
@@ -42,7 +42,7 @@ npm run tauri signer generate -- -w ~/.tauri/project-mouse.key
 
 ---
 
-## 2. Where to host — and the decision that outlives everything
+## 2. Where to host, and the decision that outlives everything
 
 There are two separate questions here, and conflating them is the mistake.
 
@@ -58,7 +58,7 @@ copy of v1.0.0 that anyone ever installs will ask that exact URL for updates, fo
 
 If that URL is `https://github.com/kayd/project-mouse/releases/latest/download/latest.json` and
 you later rename the repo, move to a GitHub organisation, get rate-limited, or leave GitHub
-entirely — **every installed copy silently stops updating and there is no way to fix it
+entirely: **every installed copy silently stops updating and there is no way to fix it
 remotely.** The only recovery is asking users to manually reinstall.
 
 The shared cPanel host at `kalanadidulanga.com` solves this properly. It already has a valid
@@ -76,7 +76,7 @@ Own endpoint first, GitHub as the fallback. Tauri moves to the next URL on any n
 so if the shared host is down, updates still work.
 
 ⚠️ **One exception to that fallback:** a `204 No Content` stops the loop immediately and is
-interpreted as "no update available". That is the correct fast path for "you're up to date" —
+interpreted as "no update available". That is the correct fast path for "you're up to date",
 but it means a bug that returns 204 unconditionally will silently freeze every user on their
 current version, and the GitHub fallback will never be consulted. Test the 204 path explicitly.
 
@@ -84,7 +84,7 @@ current version, and the GitHub fallback will never be consulted. Test the 204 p
 
 **Do not host the installer binaries there.** A shared hosting account is not a CDN:
 
-- The account is at **194,279 / 300,000 files** — 65% of the inode limit. Release artifacts
+- The account is at **194,279 / 300,000 files**, 65% of the inode limit. Release artifacts
   accumulate.
 - "Unlimited" bandwidth on shared hosting is governed by a fair-use clause, and using it as a
   binary distribution point is exactly what that clause exists to stop. A 6 MB installer at any
@@ -97,7 +97,7 @@ nothing, survives a GitHub migration, and stays inside the shared host's terms.
 
 ### What you gain by owning the endpoint
 
-Beyond survivability — a static file could not do any of this:
+Beyond survivability, a static file could not do any of this:
 
 - **Staged rollouts.** Serve the new version to 10% of checks first, watch the issue tracker,
   then open the gate. Invaluable for a tool that injects input into people's machines.
@@ -121,7 +121,7 @@ $arch    = $_GET['arch']    ?? 'x86_64';
 $manifest = json_decode(file_get_contents(__DIR__ . '/latest.json'), true);
 
 if (version_compare($current, $manifest['version'], '>=')) {
-    http_response_code(204);   // up to date — Tauri stops here
+    http_response_code(204);   // up to date, Tauri stops here
     exit;
 }
 
@@ -138,7 +138,7 @@ echo json_encode([
 ```
 
 `latest.json` is refreshed by a step in the release workflow (or a cron job that pulls the
-latest release from the GitHub API — cPanel has Cron Jobs, and a 15-minute poll is plenty).
+latest release from the GitHub API, cPanel has Cron Jobs, and a 15-minute poll is plenty).
 
 ⚠️ **Keep the TLS certificate alive.** If Let's Encrypt renewal fails, every update check in the
 world fails silently, because Tauri refuses non-TLS endpoints in production. Monitor it.
@@ -170,16 +170,16 @@ world fails silently, because Tauri refuses non-TLS endpoints in production. Mon
 ```
 
 **`createUpdaterArtifacts: true`** makes the bundler emit `project-mouse-setup.exe` **and**
-`project-mouse-setup.exe.sig`. The installer *is* the update payload — no zip wrapper. (The
+`project-mouse-setup.exe.sig`. The installer *is* the update payload: no zip wrapper. (The
 `"v1Compatible"` value produces the old `.nsis.zip` form; it will be removed in Tauri v3.)
 
 **`nsis.installMode: "currentUser"`** installs into `%LOCALAPPDATA%`. This is what lets updates
-install **without a UAC prompt**. `perMachine` means every single update pops a consent dialog —
+install **without a UAC prompt**. `perMachine` means every single update pops a consent dialog,
 fatal for a background utility.
 
 **`updater.windows.installMode: "passive"`** shows a small progress window with no interaction.
 `"quiet"` is fully silent but *"the installer cannot request admin privileges by itself so it
-only works in user-wide installations"* — which, with `currentUser`, is exactly our case. Start
+only works in user-wide installations"*, which, with `currentUser`, is exactly our case. Start
 at `passive`; move to `quiet` once it is proven.
 
 ---
@@ -188,7 +188,7 @@ at `passive`; move to `quiet` once it is proven.
 
 VS Code downloads in the background and then shows a small "Restart to update" affordance. That
 is precisely what Tauri's **split** `download()` / `install()` API is for. Do **not** use
-`downloadAndInstall()` — that is the one-shot version and it gives the user no choice about when
+`downloadAndInstall()`, that is the one-shot version and it gives the user no choice about when
 their session is interrupted.
 
 ```
@@ -201,7 +201,7 @@ App start + every 6 h
     │
     ├─ downloaded
     ├─ tray icon → "update ready" variant
-    ├─ tray tooltip → "project-mouse — update ready (v1.2.0)"
+    ├─ tray tooltip → "project-mouse: update ready (v1.2.0)"
     ├─ tray menu gains: "Restart to update v1.2.0"
     └─ settings window shows a quiet banner if it happens to be open
          │
@@ -213,7 +213,7 @@ App start + every 6 h
 ```
 
 For a tray utility this is better than VS Code's own flow: **there is no session to lose.** The
-restart is invisible — the tray icon blinks and comes back on the new version.
+restart is invisible: the tray icon blinks and comes back on the new version.
 
 ### The state must live in Rust
 
@@ -230,7 +230,7 @@ fn install_update(app: AppHandle, pending: State<'_, PendingUpdate>) -> Result<(
 }
 ```
 
-Progress goes over a `tauri::ipc::Channel<DownloadEvent>` rather than events — channels are
+Progress goes over a `tauri::ipc::Channel<DownloadEvent>` rather than events, channels are
 ordered and are what the plugin uses internally for exactly this.
 
 ### ⚠️ Windows force-exits on install
@@ -242,7 +242,7 @@ window. Hook it:
 ```rust
 app.updater_builder()
    .on_before_exit(|| {
-       // release the power request — otherwise the machine cannot sleep
+       // release the power request; otherwise the machine cannot sleep
        // until the new version starts and re-establishes it
        scheduler::shutdown();
    })
@@ -251,10 +251,10 @@ app.updater_builder()
 
 That power-request release is not hypothetical: skip it and a failed update leaves a machine
 that will not sleep, with no app running to explain why. See
-[WINDOWS-API gotcha 12](WINDOWS-API.md#gotcha-12--release-keep-awake-on-exit).
+[WINDOWS-API gotcha 12](WINDOWS-API.md#gotcha-12-release-keep-awake-on-exit).
 
 `restartAfterInstall` defaults to `true`, so **the `process` plugin's `relaunch()` is not
-needed on Windows** — the installer brings the app back itself.
+needed on Windows**: the installer brings the app back itself.
 
 ---
 
@@ -330,7 +330,7 @@ bandwidth is not billed.
 
 ⚠️ `signature` is the **content** of the `.sig` file. A path or URL does not work.
 
-⚠️ *"Tauri will validate the whole file before checking the version field"* — so one malformed
+⚠️ *"Tauri will validate the whole file before checking the version field"*, so one malformed
 platform entry breaks updates for **every** platform, not just that one.
 
 ---
@@ -339,13 +339,13 @@ platform entry breaks updates for **every** platform, not just that one.
 
 Once on startup, then every 6 hours. Not more:
 
-- A no-update check is a single request returning 204 — but it is still a network call from a
+- A no-update check is a single request returning 204, but it is still a network call from a
   process that claims to be invisible.
 - A user who leaves this running for weeks (the entire point of the app) would generate a lot of
   requests at a shorter interval, on shared hosting.
 - Add jitter (±30 min) so a popular release does not produce a synchronised thundering herd
   against the cPanel endpoint at the top of every hour.
-- Never check on a metered connection or below 20% battery — reuse the guards from
+- Never check on a metered connection or below 20% battery: reuse the guards from
   [FEATURES §B4](FEATURES.md).
 
 Settings should include **"Check for updates automatically"** (default on) and a manual
@@ -363,7 +363,7 @@ button links directly to the GitHub Releases asset:
 https://github.com/kayd/project-mouse/releases/latest/download/project-mouse-setup.exe
 ```
 
-That URL always resolves to the newest release — no page edit per version. A small script can
+That URL always resolves to the newest release, no page edit per version. A small script can
 fill in the version number and date from the GitHub API at build time, or client-side.
 
 **Put the SmartScreen warning on the page itself**, above the fold, with a screenshot of what

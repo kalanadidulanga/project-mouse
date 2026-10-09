@@ -13,7 +13,7 @@ pub enum NotifState {
     NotPresent,
     /// A fullscreen application (e.g. video).
     Busy,
-    /// Fullscreen exclusive Direct3D — a game.
+    /// Fullscreen exclusive Direct3D, a game.
     Game,
     /// Presentation mode.
     Presentation,

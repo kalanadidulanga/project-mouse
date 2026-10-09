@@ -13,7 +13,7 @@ dist-ssr/
 src-tauri/gen/
 src-tauri/target/
 
-# M0 spike — throwaway, do not commit the build output
+# M0 spike: throwaway, do not commit the build output
 spike-m0/target/
 spike-m0/node_modules/
 spike-m0/dist/
@@ -23,7 +23,7 @@ spike-m0/dist/
 Thumbs.db
 *.log
 
-# Secrets — updater private key must NEVER be committed (see docs/UPDATES.md)
+# Secrets: updater private key must NEVER be committed (see docs/UPDATES.md)
 *.key
 *.key.pub
 pm-updater.key*

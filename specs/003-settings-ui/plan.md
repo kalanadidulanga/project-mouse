@@ -1,4 +1,4 @@
-# Implementation Plan: M3 — The UI (leftovers)
+# Implementation Plan: M3: The UI (leftovers)
 
 **Branch**: `main` | **Date**: 2026-08-28 | **Spec**: [spec.md](./spec.md)
 
@@ -11,8 +11,8 @@ covering every `Condition` variant plus a timer and the input-engine settings. F
 left `[~]`. This plan closes them, plus the three `[~]` tasks in `002-conditions` that belong to
 the same surface (profile switching, tray tooltip expiry, remote-session sampling).
 
-The one design question that needed answering — can the flagship "Why is my PC awake?" panel
-work without admin — is resolved in [research.md](./research.md): **not via
+The one design question that needed answering, can the flagship "Why is my PC awake?" panel
+work without admin, is resolved in [research.md](./research.md): **not via
 `GetPowerRequestList`, which refuses an unelevated caller outright**, but via
 `SystemExecutionState`, which returns the machine-wide aggregate and does work. The panel ships
 answering "is something holding this machine awake, and is it us?" and hands over the elevated
@@ -32,7 +32,7 @@ the `quickstart.md` manual passes, which are named as such
 
 **Target Platform**: Windows 10/11, unelevated, no runtime dependencies
 
-**Project Type**: Desktop app — tray-resident Rust core, on-demand WebView2 settings window
+**Project Type**: Desktop app, tray-resident Rust core, on-demand WebView2 settings window
 
 **Performance Goals**: window open→interactive ≤ 400 ms; nothing loops or animates at rest
 
@@ -47,12 +47,12 @@ the `quickstart.md` manual passes, which are named as such
 
 | Principle | Check | Verdict |
 |---|---|---|
-| **I** — two mechanisms kept separate | Nothing here fires input events. The first-run flow creates power-only profiles and the spec requires it synthesize no input (SC-007). | ✅ |
-| **II** — honest naming | E1 is the principle applied to ourselves: it reports what is true, says plainly what it cannot see, and does not pretend a partial answer is complete. CI grep still gates the strings. | ✅ |
-| **III** — non-destructive and auditable | `SystemExecutionState` and `SM_REMOTESESSION` are **reads**. No persistent system state is touched. | ✅ |
-| **IV** — platform boundary | `SystemExecutionState` and `SM_REMOTESESSION` go behind existing/new `platform/` traits with `MockPlatform` implementations. No `#[cfg(windows)]` escapes `platform/`; CI lints it. | ✅ |
-| **V** — test-first for engine logic | Profile collection management, the E1 "is it us" subtraction, and expiry-remaining formatting are pure logic → tests first against `MockPlatform`. The two Win32 reads are FFI wrappers, named as manually verified. | ✅ |
-| **VI** — config safety | `set_profile` and the first-run flow write through the existing atomic path. **The `persist_current` collection-flattening bug (research R3) is fixed before any second profile can exist**, or this principle is violated on the first save. | ⚠️ → fixed by T014 |
+| **I**: two mechanisms kept separate | Nothing here fires input events. The first-run flow creates power-only profiles and the spec requires it synthesize no input (SC-007). | ✅ |
+| **II**: honest naming | E1 is the principle applied to ourselves: it reports what is true, says plainly what it cannot see, and does not pretend a partial answer is complete. CI grep still gates the strings. | ✅ |
+| **III**: non-destructive and auditable | `SystemExecutionState` and `SM_REMOTESESSION` are **reads**. No persistent system state is touched. | ✅ |
+| **IV**: platform boundary | `SystemExecutionState` and `SM_REMOTESESSION` go behind existing/new `platform/` traits with `MockPlatform` implementations. No `#[cfg(windows)]` escapes `platform/`; CI lints it. | ✅ |
+| **V**: test-first for engine logic | Profile collection management, the E1 "is it us" subtraction, and expiry-remaining formatting are pure logic → tests first against `MockPlatform`. The two Win32 reads are FFI wrappers, named as manually verified. | ✅ |
+| **VI**: config safety | `set_profile` and the first-run flow write through the existing atomic path. **The `persist_current` collection-flattening bug (research R3) is fixed before any second profile can exist**, or this principle is violated on the first save. | ⚠️ → fixed by T014 |
 
 **No violations require justification.** The Complexity Tracking table is therefore empty.
 
@@ -63,11 +63,11 @@ the `quickstart.md` manual passes, which are named as such
 ```text
 specs/003-settings-ui/
 ├── plan.md              # This file
-├── research.md          # Phase 0 — the E1 privilege finding, and R2/R3
-├── data-model.md        # Phase 1 — new types crossing the IPC boundary
-├── quickstart.md        # Phase 1 — the runnable validation passes (SC-001..SC-007)
+├── research.md          # Phase 0, the E1 privilege finding, and R2/R3
+├── data-model.md        # Phase 1, new types crossing the IPC boundary
+├── quickstart.md        # Phase 1, the runnable validation passes (SC-001..SC-007)
 ├── contracts/
-│   └── ipc.md           # Phase 1 — the command surface this feature adds
+│   └── ipc.md           # Phase 1, the command surface this feature adds
 ├── spec.md
 └── tasks.md
 ```
@@ -80,12 +80,12 @@ src-tauri/src/
 │   ├── mod.rs                   PowerInspector + SessionMonitor traits (+ MockPlatform impls)
 │   ├── mock.rs                  mock implementations for the test suite
 │   └── windows/
-│       ├── inspect.rs           NEW — CallNtPowerInformation(SystemExecutionState)
-│       └── session.rs           NEW — GetSystemMetrics(SM_REMOTESESSION)
+│       ├── inspect.rs           NEW, CallNtPowerInformation(SystemExecutionState)
+│       └── session.rs           NEW, GetSystemMetrics(SM_REMOTESESSION)
 ├── core/
-│   ├── awake.rs                 NEW — pure "who is holding what" reduction (tested)
+│   ├── awake.rs                 NEW, pure "who is holding what" reduction (tested)
 │   ├── engine.rs                expiry-remaining accessor for the tray tooltip
-│   └── profiles.rs              NEW — the profile collection (tested)
+│   └── profiles.rs              NEW, the profile collection (tested)
 ├── config/
 │   └── store.rs                 unchanged; `lib.rs::persist_current` stops flattening
 ├── ipc/mod.rs                   + why_awake, list_profiles, set_profile, complete_first_run
@@ -94,11 +94,11 @@ src-tauri/src/
 src/
 ├── App.tsx                      + WhyAwake panel, profile switcher, first-run gate
 ├── rules.tsx                    unchanged
-├── firstrun.tsx                 NEW — one question, three answers
+├── firstrun.tsx                 NEW, one question, three answers
 └── styles.css
 ```
 
-**Structure Decision**: the existing layout is unchanged — this feature adds two files under
+**Structure Decision**: the existing layout is unchanged, this feature adds two files under
 `platform/windows/`, three under `core/`, and one React module. It matches
 [ARCHITECTURE.md §"Source layout"](../../docs/ARCHITECTURE.md), except that the file that
 architecture names `power/inspect.rs` lands at `platform/windows/inspect.rs`, because after

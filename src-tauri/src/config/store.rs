@@ -1,5 +1,5 @@
 //! Config location + atomic load/save (FEATURES D8). On a parse error we surface and KEEP the
-//! file — never silently reset to defaults (that is Move Mouse's mistake).
+//! file, never silently reset to defaults (that is Move Mouse's mistake).
 
 use std::path::{Path, PathBuf};
 
@@ -12,7 +12,7 @@ const CONFIG_FILE: &str = "config.json";
 #[derive(Debug)]
 pub enum ConfigError {
     Io(std::io::Error),
-    /// Corrupt or unmigratable — the file is kept; the caller must surface this and NOT overwrite.
+    /// Corrupt or unmigratable: the file is kept; the caller must surface this and NOT overwrite.
     Parse(String),
 }
 
@@ -25,7 +25,7 @@ impl std::fmt::Display for ConfigError {
     }
 }
 
-/// Pure decision (testable without the filesystem): portable — beside the exe — when the exe's
+/// Pure decision (testable without the filesystem): portable, beside the exe, when the exe's
 /// directory is writable; otherwise roaming (`%APPDATA%\project-mouse`); falling back to
 /// beside-the-exe when there is no APPDATA at all.
 pub fn choose_config_path(
@@ -70,7 +70,7 @@ pub fn load(path: &Path) -> Result<Config, ConfigError> {
     match std::fs::read_to_string(path) {
         Ok(s) => {
             // Strip a UTF-8 BOM: Notepad and PowerShell's `-Encoding utf8` both write one, and
-            // serde_json reads it as corruption — which disables saving and looks like data loss.
+            // serde_json reads it as corruption, which disables saving and looks like data loss.
             let s = s.strip_prefix('\u{FEFF}').unwrap_or(&s);
             let value: serde_json::Value = serde_json::from_str(s)
                 .map_err(|e| ConfigError::Parse(format!("invalid JSON: {e}")))?;
@@ -83,7 +83,7 @@ pub fn load(path: &Path) -> Result<Config, ConfigError> {
 
 /// Atomic save: write a temp file, fsync it, then rename over the target. `std::fs::rename` maps
 /// to `MoveFileExW(REPLACE_EXISTING|WRITE_THROUGH)` on Windows, so the target is only ever the
-/// complete old or the complete new file — a kill mid-write cannot corrupt it (FEATURES D8).
+/// complete old or the complete new file, a kill mid-write cannot corrupt it (FEATURES D8).
 pub fn save_atomic(path: &Path, cfg: &Config) -> std::io::Result<()> {
     use std::io::Write;
     if let Some(parent) = path.parent() {
@@ -114,7 +114,7 @@ mod tests {
     }
 
     /// Notepad and PowerShell's `-Encoding utf8` both write a UTF-8 BOM. `serde_json` rejects it,
-    /// which turned a hand-edited config into "corrupt, saving disabled" — a bad trade for three
+    /// which turned a hand-edited config into "corrupt, saving disabled", a bad trade for three
     /// bytes. Found by feeding the app a PowerShell-written config during the M3 quickstart walk.
     #[test]
     fn a_utf8_bom_does_not_make_a_config_corrupt() {
@@ -186,7 +186,7 @@ mod tests {
         std::fs::write(&path, b"{ this is not valid json ").unwrap();
         let result = load(&path);
         assert!(matches!(result, Err(ConfigError::Parse(_))));
-        // the broken file is preserved for recovery — never silently reset
+        // the broken file is preserved for recovery, never silently reset
         assert!(path.exists());
         assert_eq!(
             std::fs::read_to_string(&path).unwrap(),

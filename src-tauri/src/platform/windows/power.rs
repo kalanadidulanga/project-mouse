@@ -1,4 +1,4 @@
-//! `PowerGuard` via `PowerCreateRequest`/`PowerSetRequest` — the handle-scoped, auditable,
+//! `PowerGuard` via `PowerCreateRequest`/`PowerSetRequest`, the handle-scoped, auditable,
 //! Modern-Standby-correct path (WINDOWS-API gotcha 0 & 2). Validated in the M0 spike.
 //!
 //! Not `SetThreadExecutionState`: it has no `PowerRequestExecutionRequired` equivalent and its
@@ -28,7 +28,7 @@ pub struct WindowsPowerGuard {
 }
 
 struct Held {
-    handle: isize,     // HANDLE as isize — HANDLE isn't Send
+    handle: isize,     // HANDLE as isize, HANDLE isn't Send
     _reason: Vec<u16>, // kept alive while the request is held
 }
 
@@ -78,7 +78,7 @@ impl PowerGuard for WindowsPowerGuard {
         if let Some(held) = self.held.lock().unwrap().take() {
             unsafe {
                 let h = HANDLE(held.handle as *mut c_void);
-                // Clearing a type that was never set is harmless — ignore per-type errors.
+                // Clearing a type that was never set is harmless, ignore per-type errors.
                 let _ = PowerClearRequest(h, PowerRequestDisplayRequired);
                 let _ = PowerClearRequest(h, PowerRequestExecutionRequired);
                 let _ = PowerClearRequest(h, PowerRequestSystemRequired);

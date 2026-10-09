@@ -85,7 +85,7 @@ impl ForegroundMonitor for NoopForegroundMonitor {
     }
 }
 
-/// No-op power source for non-Windows builds — assume plugged in.
+/// No-op power source for non-Windows builds, assume plugged in.
 #[derive(Default)]
 pub struct NoopPowerSource;
 impl PowerSource for NoopPowerSource {
@@ -94,7 +94,7 @@ impl PowerSource for NoopPowerSource {
     }
 }
 
-/// No-op injector for non-Windows builds — synthesizes nothing.
+/// No-op injector for non-Windows builds, synthesizes nothing.
 #[derive(Default)]
 pub struct NoopInjector;
 impl InputInjector for NoopInjector {
@@ -165,7 +165,7 @@ impl ProcessMonitor for MockProcessMonitor {
     }
 }
 
-/// No-op inspector for non-Windows builds — reports the aggregate as unreadable, which is the
+/// No-op inspector for non-Windows builds, reports the aggregate as unreadable, which is the
 /// truthful answer where we have not implemented the read.
 #[derive(Default)]
 pub struct NoopPowerInspector;
@@ -175,7 +175,7 @@ impl PowerInspector for NoopPowerInspector {
     }
 }
 
-/// No-op session monitor for non-Windows builds — assume a local session.
+/// No-op session monitor for non-Windows builds, assume a local session.
 #[derive(Default)]
 pub struct NoopSessionMonitor;
 impl SessionMonitor for NoopSessionMonitor {

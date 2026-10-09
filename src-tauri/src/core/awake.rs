@@ -1,4 +1,4 @@
-//! "Why is my PC awake?" — the pure reduction (FEATURES E1).
+//! "Why is my PC awake?": the pure reduction (FEATURES E1).
 //!
 //! An unelevated process cannot *name* the holder of a power request: `GetPowerRequestList`
 //! refuses us outright and `powercfg /requests` demands an elevated prompt (see
@@ -6,7 +6,7 @@
 //! aggregate.
 //!
 //! We deliberately do **not** subtract our own request from that aggregate. Whether a
-//! `PowerSetRequest` handle is reflected in `SystemExecutionState` could not be verified — the
+//! `PowerSetRequest` handle is reflected in `SystemExecutionState` could not be verified, the
 //! test machine's aggregate was saturated, so no addition was observable (research R1, T014).
 //! Subtracting on an unverified assumption would *suppress* a genuine third-party request
 //! whenever we happened to be holding the same kind, which is the worse failure. So the
@@ -30,7 +30,7 @@ pub struct AwakeReport {
     pub system_held: bool,
     pub display_held: bool,
     pub away_mode_held: bool,
-    /// What *we* hold. Known exactly — we made the request. Reported alongside the aggregate,
+    /// What *we* hold. Known exactly: we made the request. Reported alongside the aggregate,
     /// never folded into it.
     pub ours: WakeMode,
 }
@@ -92,7 +92,7 @@ mod tests {
 
     /// Regression guard for the subtraction that was designed and then cut. Whether our own
     /// `PowerSetRequest` appears in `SystemExecutionState` is unverified (research R1, T014), so
-    /// what we hold must never change what we report Windows reporting — otherwise a real
+    /// what we hold must never change what we report Windows reporting, otherwise a real
     /// third-party request disappears from the panel exactly when we are holding one too.
     #[test]
     fn our_own_request_never_alters_the_reported_aggregate() {

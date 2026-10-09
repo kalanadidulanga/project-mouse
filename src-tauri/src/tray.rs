@@ -66,7 +66,7 @@ pub fn tooltip(
         StatusKind::RunningPowerOnly => "Running · keeping the PC awake".to_string(),
         StatusKind::RunningBlocked => "Running · Windows blocked the last move".to_string(),
     };
-    let mut s = format!("project-mouse — {state}");
+    let mut s = format!("project-mouse: {state}");
     if let Some(left) = rule_left_secs {
         s.push_str(&format!(" · rule ends in {}", remaining(left)));
     }
@@ -189,13 +189,10 @@ mod tests {
     #[test]
     fn the_tooltip_says_what_is_true() {
         use StatusKind::*;
-        assert_eq!(
-            tooltip(Stopped, None, None, None),
-            "project-mouse — Stopped"
-        );
+        assert_eq!(tooltip(Stopped, None, None, None), "project-mouse: Stopped");
         assert_eq!(
             tooltip(Running, Some(42), None, None),
-            "project-mouse — Running · next move in 0:42"
+            "project-mouse: Running · next move in 0:42"
         );
         assert!(tooltip(RunningBlocked, None, None, None).contains("blocked"));
         assert!(tooltip(RunningPowerOnly, None, None, None).contains("keeping the PC awake"));

@@ -2,7 +2,7 @@
 //!
 //! `SM_REMOTESESSION` is documented, unprivileged, and a single call, so it is polled in the
 //! existing ~1 s sampler tick. The `WM_WTSSESSION_CHANGE` notification the original task named
-//! would need `WTSRegisterSessionNotification` and a window to receive messages — and this app
+//! would need `WTSRegisterSessionNotification` and a window to receive messages, and this app
 //! has no window at rest, which is the whole memory design. See research.md R2.
 
 use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_REMOTESESSION};

@@ -155,7 +155,7 @@ pub fn import(xml: &str) -> Result<Imported, String> {
         ));
     }
 
-    // Things we deliberately don't auto-translate — report them rather than guess.
+    // Things we deliberately don't auto-translate, report them rather than guess.
     let n_actions = root
         .descendants()
         .filter(|n| n.tag_name().name().ends_with("Action"))
@@ -204,7 +204,7 @@ pub fn import(xml: &str) -> Result<Imported, String> {
     let others = n_actions - usize::from(cursor.is_some());
     if others > 0 {
         report.push(format!(
-            "{others} other Move Mouse action(s) not imported — click, scroll, keys and commands \
+            "{others} other Move Mouse action(s) not imported, click, scroll, keys and commands \
              have no equivalent here."
         ));
     }
@@ -216,7 +216,7 @@ pub fn import(xml: &str) -> Result<Imported, String> {
             .any(|n| n.tag_name().name() == "AdvancedSchedule")
     {
         report.push(
-            "Schedules were not auto-mapped (Move Mouse uses Start/Stop events) — recreate the \
+            "Schedules were not auto-mapped (Move Mouse uses Start/Stop events), recreate the \
              window with a weekly schedule rule if you need it."
                 .into(),
         );
@@ -226,7 +226,7 @@ pub fn import(xml: &str) -> Result<Imported, String> {
     profile.rules.push(Rule {
         id: "imported-mm".into(),
         name: "Imported from Move Mouse".into(),
-        enabled: false, // disabled by default (UI-UX §3) — the user turns it on after reviewing
+        enabled: false, // disabled by default (UI-UX §3), the user turns it on after reviewing
         conditions,
         mode: WakeMode::KeepRunning,
     });

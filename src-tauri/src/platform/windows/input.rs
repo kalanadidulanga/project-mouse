@@ -90,7 +90,7 @@ impl InputInjector for WindowsInputInjector {
 }
 
 fn send(inputs: &[INPUT]) -> Result<()> {
-    // NOTE: a full count does NOT mean the input landed — UIPI discards silently (gotcha 3).
+    // NOTE: a full count does NOT mean the input landed, UIPI discards silently (gotcha 3).
     // That case is caught by verifying the idle clock reset (C7), not here.
     let sent = unsafe { SendInput(inputs, std::mem::size_of::<INPUT>() as i32) };
     if sent as usize != inputs.len() {

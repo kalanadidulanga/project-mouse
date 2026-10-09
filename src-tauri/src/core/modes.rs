@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Declaration order is the strength order — `Off < KeepRunning < KeepPresenting` —
+/// Declaration order is the strength order, `Off < KeepRunning < KeepPresenting`,
 /// so `#[derive(Ord)]` gives combine-by-maximum for free (ARCHITECTURE §5).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 pub enum WakeMode {

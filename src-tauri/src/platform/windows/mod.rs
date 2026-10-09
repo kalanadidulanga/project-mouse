@@ -8,8 +8,8 @@ pub mod power;
 pub mod process;
 pub mod session;
 
-/// Trim the working set back to the OS after startup (ARCHITECTURE §3). Cosmetic — pages fault
-/// back in on next touch — but a genuinely idle tray never touches them again, and users judge
+/// Trim the working set back to the OS after startup (ARCHITECTURE §3). Cosmetic, pages fault
+/// back in on next touch, but a genuinely idle tray never touches them again, and users judge
 /// footprint by Task Manager. Never call on a hot path.
 pub fn trim_working_set() {
     use windows::Win32::System::ProcessStatus::EmptyWorkingSet;
@@ -19,7 +19,7 @@ pub fn trim_working_set() {
     }
 }
 
-/// Local (weekday 0=Mon..6=Sun, minutes-of-day) via `GetLocalTime` — no timezone crate needed.
+/// Local (weekday 0=Mon..6=Sun, minutes-of-day) via `GetLocalTime`, no timezone crate needed.
 pub fn local_time() -> (u8, u16) {
     use windows::Win32::System::SystemInformation::GetLocalTime;
     let st = unsafe { GetLocalTime() };
@@ -29,7 +29,7 @@ pub fn local_time() -> (u8, u16) {
     (weekday, minutes)
 }
 
-/// Raw `GetLastInputInfo.dwTime` (u32) — same clock domain as `tick_now`.
+/// Raw `GetLastInputInfo.dwTime` (u32), same clock domain as `tick_now`.
 pub fn last_input_tick() -> u32 {
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
     let mut lii = LASTINPUTINFO {

@@ -1,4 +1,4 @@
-# Implementation Plan: M1 — The Wake Engine
+# Implementation Plan: M1: The Wake Engine
 
 **Branch**: `001-wake-engine` | **Date**: 2026-08-22 | **Spec**: [spec.md](./spec.md)
 
@@ -26,11 +26,11 @@ _Threading, _SystemServices, _ProcessStatus, _Registry, Foundation), `tracing` +
 `tracing-appender`, `serde`/`serde_json`, `tauri-plugin-single-instance`,
 `tauri-plugin-autostart`. **No SQLite. No tokio at idle** (all commands synchronous).
 
-**Storage**: single `config.json` — beside the exe in portable mode, else
+**Storage**: single `config.json`: beside the exe in portable mode, else
 `%APPDATA%\project-mouse`. Atomic write (temp + fsync + `MoveFileEx` replace), debounced 500 ms,
 `schema_version` + migration chain.
 
-**Testing**: `cargo test` — engine/config/migration logic unit-tested against `MockPlatform`,
+**Testing**: `cargo test`: engine/config/migration logic unit-tested against `MockPlatform`,
 zero Win32 in the suite. Win32 wrappers verified by the M0-style manual/integration checks and
 the `powercfg` release checks.
 
@@ -52,18 +52,18 @@ loop, scheduler, executor is dormant in M1); a handful of tray menu items.
 
 *GATE: passes.*
 
-- **I. Two mechanisms separate** — M1 ships the power engine only; input engine absent. Power is
+- **I. Two mechanisms separate**: M1 ships the power engine only; input engine absent. Power is
   modelled as held *state* reconciled per tick, never as an event/action. ✅
-- **II. Honest naming** — no input synthesis and no marketing surface in M1; tooltip states what is
+- **II. Honest naming**: no input synthesis and no marketing surface in M1; tooltip states what is
   true of the machine. CI banned-word grep added in M5, but no offending strings introduced. ✅
-- **III. Non-destructive & auditable** — `PowerCreateRequest` path only, reason string, release on
+- **III. Non-destructive & auditable**: `PowerCreateRequest` path only, reason string, release on
   exit + panic hook, no persistent-state writes. The `powercfg` clean-after-kill test is an exit
   criterion. ✅
-- **IV. Platform boundary** — `PowerGuard`, `AutoStart` (+ stub monitors) behind `platform/`; no
+- **IV. Platform boundary**: `PowerGuard`, `AutoStart` (+ stub monitors) behind `platform/`; no
   `#[cfg(windows)]` in `core/`; `MockPlatform` delivered. ✅
-- **V. Test-first engine logic** — mode reconciliation, config migration, portable-path detection
+- **V. Test-first engine logic**: mode reconciliation, config migration, portable-path detection
   written test-first against `MockPlatform`. ✅
-- **VI. Config safety** — `schema_version`, atomic write, no silent reset. ✅
+- **VI. Config safety**: `schema_version`, atomic write, no silent reset. ✅
 
 No violations → Complexity Tracking empty.
 
@@ -90,7 +90,7 @@ arrive with their milestone. No `#[cfg(windows)]` leaves `platform/`.
 src-tauri/src/
 ├── main.rs                 # bootstrap, single-instance, tray, run loop, prevent_exit, panic hook
 ├── ipc/
-│   └── mod.rs              # thin Tauri commands (get_state, set_mode) — sync only
+│   └── mod.rs              # thin Tauri commands (get_state, set_mode), sync only
 ├── core/
 │   ├── mod.rs
 │   ├── engine.rs          # the 1 s tick: read desired mode → reconcile power
@@ -118,7 +118,7 @@ src-tauri/src/
 
 src-tauri/capabilities/main.json   # enumerated permissions (no core:default)
 src-tauri/tauri.conf.json          # windows:[{create:false}], nsis currentUser, minimal features
-src/                                # React/TS scaffold — present but unused until M3
+src/                                # React/TS scaffold, present but unused until M3
 ```
 
 **Structure Decision**: single Tauri desktop project at repo root; `core/` is Win32-free and

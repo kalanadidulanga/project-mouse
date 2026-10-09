@@ -1,8 +1,8 @@
 # Release pipeline (UPDATES.md §5). Builds, signs the update artifacts, and drafts a GitHub release.
-# Requires these repo secrets before it can sign — see docs/SHIP.md:
+# Requires these repo secrets before it can sign; see docs/SHIP.md:
 #   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD  (minisign update key)
 #   MANIFEST_TOKEN                                                  (cPanel latest.json publish)
-# Authenticode/SmartScreen signing (SignPath) is a separate concern — see docs/SHIP.md.
+# Authenticode/SmartScreen signing (SignPath) is a separate concern; see docs/SHIP.md.
 name: release
 on:
   push:

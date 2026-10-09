@@ -1,16 +1,16 @@
-# Tasks: M2 — Conditions
+# Tasks: M2: Conditions
 
 **Feature**: `002-conditions` | **Spec**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md)
 
 `[P]` = parallelizable. TDD: test task before impl. `core/` logic tested against a hand-built
-`Snapshot` / `MockPlatform` — **no Win32 in tests** (constitution V).
+`Snapshot` / `MockPlatform`: **no Win32 in tests** (constitution V).
 
 ---
 
-## Phase 1 — Rule engine core (pure, no OS)  🎯 the product
+## Phase 1: Rule engine core (pure, no OS)  🎯 the product
 
 - [x] **T001** `core/snapshot.rs`: `Snapshot { now, idle, foreground_exe, session_locked,
-  remote_session, notification_state, running_processes, on_ac, battery_pct, cpu_pct }` — plain data
+  remote_session, notification_state, running_processes, on_ac, battery_pct, cpu_pct }`, plain data
   a tick fills and conditions read. `Default` for tests.
 - [x] **T002** `core/rule.rs`: `Condition` enum (ProcessRunning, TimeWindow, Expiry, OnACPower,
   BatteryAbove, SessionUnlocked, UserNotificationState, ForegroundAppIn/NotIn, Not, AnyOf, AllOf),
@@ -20,9 +20,9 @@
   session; notification state; foreground in/not-in; Not/AnyOf/AllOf). MUST fail first.
 - [x] **T004** `core/evaluator.rs`: `Condition::eval(&Snapshot) -> bool` + `desired_mode(profile,
   &Snapshot) -> WakeMode` (combine-by-max over matching enabled rules). Make T003 pass.
-- [x] **T005 [P]** Test: combine-by-max across rules (SC-007) — weaker never lowers stronger.
+- [x] **T005 [P]** Test: combine-by-max across rules (SC-007), weaker never lowers stronger.
 
-## Phase 2 — The tick
+## Phase 2: The tick
 
 - [x] **T006** `timing/ticker.rs`: `CreateWaitableTimerExW` + `SetWaitableTimerEx` (1000 ms, 200 ms
   tolerable delay); a loop calling a closure each tick. On non-Windows, a `std::thread::sleep`
@@ -33,7 +33,7 @@
 - [x] **T008** `lib.rs`: spawn the scheduler thread (owns the reconciler); stop it cleanly on exit
   (still release power on every path).
 
-## Phase 3 — Platform monitors (behind traits)
+## Phase 3: Platform monitors (behind traits)
 
 - [x] **T009** `platform/mod.rs` + `mock.rs`: add `ProcessMonitor`, `SessionMonitor`,
   `ForegroundMonitor` (+ presentation/notification state), `PowerSource`, `SystemLoad` traits + fakes.
@@ -46,21 +46,21 @@
   `GetSystemTimes` (CPU delta).
 - [x] **T014** Wire the monitors into the scheduler's per-tick / cadence-limited sampling.
 
-## Phase 4 — Persistence, profiles, hotkey
+## Phase 4: Persistence, profiles, hotkey
 
-- [X] **T015** Test: config **v1→v2** migration — a bare-`mode` v1 file becomes one default profile ✅ Done in 003 T018.
+- [X] **T015** Test: config **v1→v2** migration, a bare-`mode` v1 file becomes one default profile ✅ Done in 003 T018.
   holding that mode. MUST fail first.
 - [X] **T016** `config/model.rs` + `migrate.rs`: schema_version 2, profiles + active id; migration. ✅ Done in 003 T018.
   Persist rules atomically.
-- [X] **T017** Tray: profile submenu (switch active), and rules surfaced read-only for now (full rule ✅ **Done 2026-08-28** in 003 T025–T027 — tray submenu + UI switcher + the `persist_current` data-loss fix that had to land first.
+- [X] **T017** Tray: profile submenu (switch active), and rules surfaced read-only for now (full rule ✅ **Done 2026-08-28** in 003 T025–T027, tray submenu + UI switcher + the `persist_current` data-loss fix that had to land first.
   builder UI is M3). `SwitchProfile` action.
-- [x] **T018** Global hotkey (D3) via `tauri-plugin-global-shortcut` — toggle wake with no window.
+- [x] **T018** Global hotkey (D3) via `tauri-plugin-global-shortcut`, toggle wake with no window.
 
-## Phase 5 — Time correctness & exit criteria
+## Phase 5: Time correctness & exit criteria
 
 - [x] **T019** Handle resume (`PBT_APMRESUMEAUTOMATIC`) + `WM_TIMECHANGE`: re-evaluate immediately;
   recompute schedules against local time. Idle-time clamp/wrap guard (WINDOWS-API gotcha 1).
-- [X] **T020** Expiry remaining-time in the tray tooltip (SC-003). ✅ **Done 2026-08-28** in 003 T028 — `soonest_expiry_secs`, shown in the tray tooltip.
+- [X] **T020** Expiry remaining-time in the tray tooltip (SC-003). ✅ **Done 2026-08-28** in 003 T028, `soonest_expiry_secs`, shown in the tray tooltip.
 - [~] **T021** Exit-criteria pass SC-001..SC-010; `cargo test` green (all engine tests on
   `Snapshot`/`MockPlatform`); idle CPU ≤ 0.05 % with rules active.
 
@@ -86,12 +86,12 @@
 - **Done & live-verified:** rule engine (26 tests), 1s scheduler tick, process binding
   (`--while-process`, SC-001/002 verified via logs), live monitors (foreground + notification
   via `SHQueryUserNotificationState`, battery/AC via `GetSystemPowerStatus`), global hotkey
-  `Ctrl+Alt+K` (D3). T019 time-correctness is satisfied by design — every tick recomputes against
+  `Ctrl+Alt+K` (D3). T019 time-correctness is satisfied by design, every tick recomputes against
   fresh `GetLocalTime`, so resume / timezone changes need no special handling.
 - **`[~]` deferred to M3** (need the rule-builder UI to *create* rules/profiles before persisting
   them): config v2 profile persistence (T015-T016), tray profile switching (T017), expiry
   remaining-time tooltip (T020).
-- **`[~]` refinements:** precise WTS lock/unlock (T012 — currently derived from `QUNS_NOT_PRESENT`),
-  CPU-load sampling (T013 — no condition consumes it until B4/M6).
+- **`[~]` refinements:** precise WTS lock/unlock (T012, currently derived from `QUNS_NOT_PRESENT`),
+  CPU-load sampling (T013: no condition consumes it until B4/M6).
 - **`[~]` T021:** SC-001/002/008 verified; SC-005 (battery)/SC-006 (Process Monitor)/SC-009
   (hotkey live) need hardware/manual checks.

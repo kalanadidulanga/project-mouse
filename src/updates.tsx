@@ -6,7 +6,7 @@ type UpdateStatus = { current: string; available: string | null; auto_check: boo
 
 /** UPDATES.md §6: a background check hints, it never interrupts. But the hint used to be a tray
  *  tooltip and nothing else, which is not a hint so much as a secret. This is the affordance
- *  ROADMAP M5 asks for — visible, and still nothing happens until you press it. */
+ *  ROADMAP M5 asks for, visible, and still nothing happens until you press it. */
 export function UpdateBanner() {
   const [u, setU] = useState<UpdateStatus | null>(null);
   const [busy, setBusy] = useState(false);

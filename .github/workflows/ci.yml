@@ -31,10 +31,10 @@ jobs:
       - name: test
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
-      - name: honesty gate (PRODUCT §5 — no anti-detection language in shipped code/UI)
+      - name: honesty gate (PRODUCT §5: no anti-detection language in shipped code/UI)
         shell: bash
         run: |
-          # Scope: the shipping surface only (React UI + Rust). NOT docs/ or specs/ — those
+          # Scope: the shipping surface only (React UI + Rust). NOT docs/ or specs/, those
           # legitimately *discuss* the forbidden terms as the line not to cross (PRODUCT §5).
           if grep -rniE "undetectable|human-like|looks human|natural motion" \
                src src-tauri/src --include="*.rs" --include="*.ts" --include="*.tsx"; then
@@ -42,7 +42,7 @@ jobs:
             exit 1
           fi
 
-      - name: platform boundary lint (constitution IV — no cfg(windows) outside platform/)
+      - name: platform boundary lint (constitution IV: no cfg(windows) outside platform/)
         shell: bash
         run: |
           if grep -rn "cfg(windows)" src-tauri/src --include="*.rs" | grep -v "src-tauri/src/platform/"; then
@@ -50,7 +50,7 @@ jobs:
             exit 1
           fi
 
-      - name: size gate (README budget — exe <= 8 MB)
+      - name: size gate (README budget: exe <= 8 MB)
         shell: bash
         run: |
           cargo build --release --manifest-path src-tauri/Cargo.toml

@@ -1,7 +1,7 @@
 # Windows API mapping
 
 Everything here is via the [`windows`](https://crates.io/crates/windows) crate (windows-rs).
-No `winapi`, no hand-written `extern "system"` blocks, no P/Invoke-style marshalling layer —
+No `winapi`, no hand-written `extern "system"` blocks, no P/Invoke-style marshalling layer;
 windows-rs generates direct calls from the official metadata.
 
 The second half of this document is the more valuable half: **the gotchas**. Each one is a
@@ -13,7 +13,7 @@ bug that will otherwise be found the hard way.
 
 ```toml
 [dependencies.windows]
-version = "0.62"          # pin the current 0.x — module paths occasionally
+version = "0.62"          # pin the current 0.x, module paths occasionally
                           # move between minor versions; verify on crates.io
 features = [
   "Win32_Foundation",
@@ -32,7 +32,7 @@ features = [
 ]
 ```
 
-Feature flags are additive and gate compile time — do not enable `Win32` wholesale.
+Feature flags are additive and gate compile time, do not enable `Win32` wholesale.
 
 ---
 
@@ -44,7 +44,7 @@ Feature flags are additive and gate compile time — do not enable `Win32` whole
 
 | Need | Call |
 |---|---|
-| Read cursor | `GetCursorPos(&mut POINT)` — `Win32::UI::WindowsAndMessaging` |
+| Read cursor | `GetCursorPos(&mut POINT)`: `Win32::UI::WindowsAndMessaging` |
 | Relative move | `SendInput` with `MOUSEEVENTF_MOVE` |
 | Absolute move | `SendInput` with `MOUSEEVENTF_MOVE \| MOUSEEVENTF_ABSOLUTE \| MOUSEEVENTF_VIRTUALDESK` |
 | Precise path steps | add `MOUSEEVENTF_MOVE_NOCOALESCE` |
@@ -65,13 +65,13 @@ let mut input = INPUT {
     },
 };
 let sent = unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) };
-if sent == 0 { /* blocked — see gotcha 3 */ }
+if sent == 0 { /* blocked, see gotcha 3 */ }
 ```
 
 ### Keyboard
 
-`SendInput` with `INPUT_KEYBOARD` / `KEYBDINPUT`. Always send the matching `KEYEVENTF_KEYUP`
-— a modifier left down is a stuck modifier for the whole session.
+`SendInput` with `INPUT_KEYBOARD` / `KEYBDINPUT`. Always send the matching `KEYEVENTF_KEYUP`;
+a modifier left down is a stuck modifier for the whole session.
 
 Default key: `VK_F15` (`0x7E`). Rationale in [FEATURES.md §A2](FEATURES.md).
 
@@ -89,18 +89,18 @@ unsafe { GetLastInputInfo(&mut lii) };
 let idle_ms = GetTickCount().wrapping_sub(lii.dwTime);   // see gotcha 1
 ```
 
-### Keep awake — the most important API in the project
+### Keep awake: the most important API in the project
 
 `windows::Win32::System::Power`
 
 **Do not use `SetThreadExecutionState`.** It is what every tool in this category reaches for and
-it is wrong here for two independent reasons — see gotcha 2 (undocumented thread affinity) and
+it is wrong here for two independent reasons, see gotcha 2 (undocumented thread affinity) and
 **gotcha 0** (it does not hold a Modern Standby machine awake at all).
 
 ```rust
 use windows::Win32::System::Power::*;
 
-// acquire — the reason string is user-visible in `powercfg /requests`
+// acquire: the reason string is user-visible in `powercfg /requests`
 let mut ctx = REASON_CONTEXT {
     Version: POWER_REQUEST_CONTEXT_VERSION,
     Flags:   POWER_REQUEST_CONTEXT_SIMPLE_STRING,
@@ -124,7 +124,7 @@ CloseHandle(req)?;
 | `PowerRequestSystemRequired` | The system does not enter sleep on idle |
 | `PowerRequestDisplayRequired` | The display stays on; screensaver and idle lock suppressed |
 | **`PowerRequestExecutionRequired`** | **The process keeps running on a Modern Standby (S0) system.** Windows 8+. Without it, S0 machines suspend the process even though the "system required" request is held |
-| `PowerRequestAwayModeRequired` | Away Mode — media scenarios. Not used here |
+| `PowerRequestAwayModeRequired` | Away Mode, media scenarios. Not used here |
 
 Mode mapping is in [FEATURES A1](FEATURES.md#a1-the-two-modes).
 
@@ -132,37 +132,37 @@ Mode mapping is in [FEATURES A1](FEATURES.md#a1-the-two-modes).
 
 > **Superseded by measurement.** This section originally recommended
 > `CallNtPowerInformation(GetPowerRequestList)` and predicted a *partial* list unelevated. It is
-> not partial — it is nothing. Measured on Windows 11 Pro 26200, unelevated, 2026-08-28:
+> not partial; it is nothing. Measured on Windows 11 Pro 26200, unelevated, 2026-08-28:
 
 | Probe | Result |
 |---|---|
-| `powercfg /requests` | exit 1 — *"requires administrator privileges"*. No partial output. |
+| `powercfg /requests` | exit 1: *"requires administrator privileges"*. No partial output. |
 | `CallNtPowerInformation(GetPowerRequestList = 45)`, out-buffer 0 / 16 B / 1 KiB / 64 KiB | `STATUS_INVALID_PARAMETER` (0xC000000D) at every size |
-| Controls — `LastSleepTime`(15), `LastWakeTime`(14), `SystemPowerInformation`(12) | `STATUS_SUCCESS` |
+| Controls: `LastSleepTime`(15), `LastWakeTime`(14), `SystemPowerInformation`(12) | `STATUS_SUCCESS` |
 | `CallNtPowerInformation(SystemExecutionState = 16)` | `STATUS_SUCCESS` |
 
 The control row is the one that settles it: three sibling information levels succeed with
 identical argument shapes, so level 45 is a **privilege gate**, not a buffer-size bug. There is
-no `POWER_REQUEST_LIST` to hand-declare, because we never receive one — which also disposes of
+no `POWER_REQUEST_LIST` to hand-declare, because we never receive one, which also disposes of
 the memory-safety hazard of parsing an undocumented struct of relative offsets in `unsafe`.
 
 ### What to use instead
 
 `CallNtPowerInformation(SystemExecutionState, ...)` → a `u32` `EXECUTION_STATE` bitmask:
 `ES_SYSTEM_REQUIRED` (0x1), `ES_DISPLAY_REQUIRED` (0x2), `ES_AWAYMODE_REQUIRED` (0x40). It is
-documented, fixed-size, and safe to read, and it aggregates beyond the calling process — the
+documented, fixed-size, and safe to read, and it aggregates beyond the calling process, the
 probe read `0x02` while holding nothing itself.
 
 **Do not net it against your own request.** Whether a `PowerCreateRequest`/`PowerSetRequest`
 handle appears in this aggregate could not be verified: on the test machine the aggregate sat
 saturated at `0x03`, so no addition was observable, and the one free channel (away mode) turns out
 not to be reported there at all. Subtracting on that assumption would suppress a genuine
-third-party request precisely when we hold the same kind — the worse of the two failure modes.
+third-party request precisely when we hold the same kind, the worse of the two failure modes.
 
 So report the two separately: our own state (known exactly, we made the request) and this
 aggregate (verbatim, described as a hint rather than an inventory). Naming the holder is the
 follow-up question, and [FEATURES E1](FEATURES.md#e1-why-is-my-pc-awake) answers it by handing
-over `powercfg /requests` as copyable text with the note that it needs an elevated prompt — better
+over `powercfg /requests` as copyable text with the note that it needs an elevated prompt, better
 than silently showing an incomplete list, and it avoids asking for admin rights we promised never
 to need.
 
@@ -185,7 +185,7 @@ GetForegroundWindow()                        // Win32::UI::WindowsAndMessaging
   → QueryFullProcessImageNameW(handle, PROCESS_NAME_WIN32, ...)
 ```
 
-`PROCESS_QUERY_LIMITED_INFORMATION` (not `PROCESS_QUERY_INFORMATION`) — the limited right
+`PROCESS_QUERY_LIMITED_INFORMATION` (not `PROCESS_QUERY_INFORMATION`), the limited right
 works against elevated and protected processes where the full right is denied.
 
 ### Fullscreen / game / presentation detection
@@ -196,21 +196,21 @@ works against elevated and protected processes where the full right is denied.
 |---|---|---|
 | 1 | `QUNS_NOT_PRESENT` | **Screensaver showing, machine locked, or an inactive Fast User Switching session.** |
 | 2 | `QUNS_BUSY` | Fullscreen app (video, etc.) |
-| 3 | `QUNS_RUNNING_D3D_FULL_SCREEN` | Fullscreen exclusive Direct3D — a game |
+| 3 | `QUNS_RUNNING_D3D_FULL_SCREEN` | Fullscreen exclusive Direct3D, a game |
 | 4 | `QUNS_PRESENTATION_MODE` | Presentation mode |
 | 5 | `QUNS_ACCEPTS_NOTIFICATIONS` | Normal |
 | 6 | `QUNS_QUIET_TIME` | Quiet hours (Win7+) |
 | 7 | `QUNS_APP` | A Store app is running full screen (Win8+) |
 
 One call, four features. Do **not** reimplement this by comparing window rects to monitor
-rects — that heuristic misfires on borderless windows and on multi-monitor layouts.
+rects, that heuristic misfires on borderless windows and on multi-monitor layouts.
 
 ⚠️ **`QUNS_NOT_PRESENT` (1) is the one everybody forgets**, and it is the most useful value
 here: it is the cheapest reliable signal for "screen is locked or the screensaver is up". Treat
 it as a first-class state, not a leftover.
 
 ⚠️ Precedence: during quiet time, if another blocking mode also applies, only that other value
-is returned — `QUNS_QUIET_TIME` does not mask it. Do not write the check as an if/else chain
+is returned, `QUNS_QUIET_TIME` does not mask it. Do not write the check as an if/else chain
 that assumes quiet time wins.
 
 ### Monitors and virtual desktop
@@ -231,13 +231,13 @@ Re-enumerate on `WM_DISPLAYCHANGE` (`0x007E`).
 ### Sleep / resume
 
 `WM_POWERBROADCAST` (`0x0218`) with `PBT_APMSUSPEND` (`0x4`) and `PBT_APMRESUMEAUTOMATIC`
-(`0x12`). Re-arm all interval triggers on resume — the machine may have been asleep for hours.
+(`0x12`). Re-arm all interval triggers on resume, the machine may have been asleep for hours.
 
 ### Battery and CPU
 
-- `Win32::System::Power::GetSystemPowerStatus(&mut SYSTEM_POWER_STATUS)` — AC line status,
+- `Win32::System::Power::GetSystemPowerStatus(&mut SYSTEM_POWER_STATUS)`: AC line status,
   battery percent
-- `Win32::System::Threading::GetSystemTimes(idle, kernel, user)` — sample twice, compute the
+- `Win32::System::Threading::GetSystemTimes(idle, kernel, user)`: sample twice, compute the
   delta ratio. No PDH, no WMI: both are heavyweight for one number.
 
 ### Timer
@@ -257,7 +257,7 @@ WaitForSingleObject(timer, INFINITE);
 ```
 
 The tolerable delay is what allows Windows to coalesce this wake-up with others.
-See [ARCHITECTURE.md §7](ARCHITECTURE.md#7-timing--how-idle-cpu-stays-at-000).
+See [ARCHITECTURE.md §7](ARCHITECTURE.md#7-timing-how-idle-cpu-stays-at-000).
 
 ### Global hotkeys
 
@@ -267,7 +267,7 @@ See [ARCHITECTURE.md §7](ARCHITECTURE.md#7-timing--how-idle-cpu-stays-at-000).
 ### DPI awareness
 
 `Win32::UI::HiDpi::SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)`,
-or declare it in the manifest (preferred — it applies before any window exists).
+or declare it in the manifest (preferred, it applies before any window exists).
 
 ### Power throttling (EcoQoS)
 
@@ -284,7 +284,7 @@ Enable at rest, clear while an action sequence runs.
 
 ### Memory reporting
 
-`Win32::System::ProcessStatus::{GetProcessMemoryInfo, EmptyWorkingSet}` — the first for the
+`Win32::System::ProcessStatus::{GetProcessMemoryInfo, EmptyWorkingSet}`: the first for the
 Diagnostics panel and the CI benchmark, the second for post-webview-teardown trimming
 (cosmetic; see ARCHITECTURE §3).
 
@@ -304,13 +304,13 @@ running instance and exit. `tauri-plugin-single-instance` does this and forwards
 
 These are ordered by how much time each will cost if missed.
 
-### Gotcha 0 — SetThreadExecutionState does not prevent Modern Standby
+### Gotcha 0: SetThreadExecutionState does not prevent Modern Standby
 
 The highest-value gotcha in this document, and the one that explains why every competing tool
 has an open bug.
 
 `SetThreadExecutionState` **only resets idle timers**. On a Modern Standby (S0) system with the
-display off, that is not enough — the machine enters connected standby anyway, and a
+display off, that is not enough: the machine enters connected standby anyway, and a
 long-running job dies. The user-visible symptom is "the tool says it's running, and my laptop
 still went to sleep."
 
@@ -330,7 +330,7 @@ platform.
 laptop, lid closed, display off, **Keep running** active, still reachable eight hours later.
 That test goes in the release checklist, not in CI.
 
-### Gotcha 1 — `LASTINPUTINFO.dwTime` is 32-bit and wraps
+### Gotcha 1: `LASTINPUTINFO.dwTime` is 32-bit and wraps
 
 `dwTime` is a `DWORD` derived from `GetTickCount()`, which wraps every **49.7 days**.
 `GetTickCount64()` does not wrap. Subtracting a wrapped 32-bit value from a 64-bit one gives
@@ -339,17 +339,17 @@ an idle time of roughly 49 days, and every idle rule fires immediately and perma
 Compare in the same width, with wrapping arithmetic:
 
 ```rust
-let idle_ms = GetTickCount().wrapping_sub(lii.dwTime);   // both u32 — correct
+let idle_ms = GetTickCount().wrapping_sub(lii.dwTime);   // both u32: correct
 ```
 
 (`GetTickCount64()` truncated to `u32` is bit-identical to `GetTickCount()`, so that works
 too. The error is comparing the *untruncated* 64-bit value.)
 
 Uptimes past 49 days are not exotic on the exact machines this tool targets: servers,
-wallboards, and workstations that are never allowed to sleep — because this tool is running.
+wallboards, and workstations that are never allowed to sleep, because this tool is running.
 
 **And clamp the result.** Microsoft explicitly documents that `dwTime` is *not guaranteed to be
-incremental* — it can be lower than a prior event's tick, because of a timing gap between the
+incremental*, it can be lower than a prior event's tick, because of a timing gap between the
 raw input thread and the desktop thread, or because `SendInput` supplies its own tick count.
 So the subtraction can legitimately produce a huge wrapped value even without a 49-day wrap:
 
@@ -361,12 +361,12 @@ let idle_ms = if raw > SANITY_MAX { 0 } else { raw };   // treat nonsense as "ju
 Note the second cause in that list: **`SendInput` supplying its own tick count is our own code**.
 This gotcha and the self-injection filter are the same bug wearing two hats.
 
-### Gotcha 2 — SetThreadExecutionState is thread-affine
+### Gotcha 2: SetThreadExecutionState is thread-affine
 
 The execution state belongs to the **calling thread** and is discarded when that thread exits.
 
 ```rust
-// WRONG — the state dies with the thread, seconds later
+// WRONG: the state dies with the thread, seconds later
 std::thread::spawn(|| unsafe {
     SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED);
 });
@@ -385,7 +385,7 @@ Since the whole keep-awake feature depends on it, prefer the API that *does* doc
 lifetime:
 
 ```rust
-// Win32::System::Power — handle-scoped, documented, and it shows up in `powercfg /requests`
+// Win32::System::Power, handle-scoped, documented, and it shows up in `powercfg /requests`
 let req = PowerCreateRequest(&REASON_CONTEXT { ... })?;
 PowerSetRequest(req, PowerRequestDisplayRequired)?;
 PowerSetRequest(req, PowerRequestSystemRequired)?;
@@ -395,26 +395,26 @@ CloseHandle(req)?;
 ```
 
 The request is tied to a **handle**, not a thread, so it survives any threading refactor. It
-also appears in `powercfg /requests` with the reason string you supply — which means a user (or
+also appears in `powercfg /requests` with the reason string you supply, which means a user (or
 an IT admin) can see exactly why the machine will not sleep, and attribute it to this app by
 name. For a tool in this category, being legible to `powercfg` is a trust feature, not a
 detail.
 
-### Gotcha 3 — SendInput fails undetectably under UIPI
+### Gotcha 3: SendInput fails undetectably under UIPI
 
 This is worse than "fails silently", and it is worth reading the documentation sentence
 verbatim:
 
 > "This function fails when it is blocked by UIPI. Note that neither `GetLastError` nor the
 > return value will indicate the failure was caused by UIPI blocking."
-> — [SendInput, Remarks](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput)
+> - [SendInput, Remarks](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput)
 
-So when User Interface Privilege Isolation blocks injection — a process at higher integrity
-owns the foreground window — `SendInput` typically reports the **full event count, as if it
+So when User Interface Privilege Isolation blocks injection, a process at higher integrity
+owns the foreground window, `SendInput` typically reports the **full event count, as if it
 succeeded**, while the input goes nowhere. There is no error code to check.
 
 The documented "returns 0" case is a *different* failure: input already blocked by another
-thread via `BlockInput`. Checking the return value is still correct and still necessary — it
+thread via `BlockInput`. Checking the return value is still correct and still necessary, it
 just does not catch the case you most want to catch.
 
 Situations where injection silently evaporates:
@@ -433,16 +433,16 @@ success. This is the only way the app can honestly tell the user "I am running b
 currently do anything".
 
 Do not respond to this by requesting elevation. Running a background input-injection utility as
-administrator is a far worse trade than occasionally being unable to inject — and it makes
+administrator is a far worse trade than occasionally being unable to inject, and it makes
 the AV-reputation problem in the README significantly harder.
 
-### Gotcha 4 — tag your own input with `dwExtraInfo`
+### Gotcha 4: tag your own input with `dwExtraInfo`
 
 Both `MOUSEINPUT` and `KEYBDINPUT` carry a `dwExtraInfo: usize` that travels with the event.
 Set it to a constant magic value.
 
 This does not help with `GetLastInputInfo` (which ignores it), but it makes the app's own
-events identifiable to anything that reads the input stream — including the app's own future
+events identifiable to anything that reads the input stream, including the app's own future
 code, and any diagnostics. It costs nothing and it is impossible to retrofit into logs that
 were never written.
 
@@ -450,7 +450,7 @@ The actual self-injection filter is the timestamp-window approach in
 [ARCHITECTURE.md §6](ARCHITECTURE.md#6-the-self-injection-feedback-loop), because
 `LLMHF_INJECTED` is only visible from a low-level hook, and hooks are out of scope.
 
-### Gotcha 5 — absolute coordinates are normalised, and default to the primary monitor
+### Gotcha 5: absolute coordinates are normalised, and default to the primary monitor
 
 `MOUSEEVENTF_ABSOLUTE` coordinates are **0..65535 normalised**, not pixels. Without
 `MOUSEEVENTF_VIRTUALDESK` they normalise against the primary monitor only, so on a
@@ -468,31 +468,31 @@ let ny = ((y - vy) as i64 * 65535 / (vh - 1) as i64) as i32;
 dwFlags: MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK
 ```
 
-Note `vx` / `vy` can be **negative** — a monitor placed left of or above the primary. Code
+Note `vx` / `vy` can be **negative**, a monitor placed left of or above the primary. Code
 that assumes the virtual desktop starts at (0, 0) breaks on a very common layout.
 
-### Gotcha 6 — relative movement passes through pointer acceleration
+### Gotcha 6: relative movement passes through pointer acceleration
 
 `MOUSEEVENTF_MOVE` with `dx: 10` does not move exactly 10 pixels. It is fed through the
 system's pointer speed and Enhanced Pointer Precision curve, so the actual displacement
 depends on user settings and on the velocity implied by the step timing.
 
-For motion that must be exact — a Bézier path, or "return to origin" — read `GetCursorPos`,
+For motion that must be exact, a Bézier path, or "return to origin", read `GetCursorPos`,
 compute the target, and send an **absolute** move. Relative moves are fine for a jiggle where
 only "something happened" matters.
 
-### Gotcha 7 — `MOUSEEVENTF_MOVE` with `dx: 0, dy: 0` may be discarded
+### Gotcha 7: `MOUSEEVENTF_MOVE` with `dx: 0, dy: 0` may be discarded
 
 A zero-delta move can be coalesced away and may not register as input at all. Never rely on
 it as a no-op nudge. Move by at least 1 pixel, or move 1 and back.
 
-### Gotcha 8 — `SendInput` batches must be sent in one call
+### Gotcha 8: `SendInput` batches must be sent in one call
 
 Events for one logical gesture (key down + key up, button down + button up) must go in a
 single `SendInput` array. Separate calls can be interleaved with real user input by the
 system, producing a click that spans a real user action.
 
-### Gotcha 9 — `timeBeginPeriod`: still don't, but not for the reason you think
+### Gotcha 9: `timeBeginPeriod`: still don't, but not for the reason you think
 
 The folk wisdom is "it raises the global system timer resolution and burns battery
 machine-wide". **That stopped being true in Windows 10, version 2004.**
@@ -500,7 +500,7 @@ machine-wide". **That stopped being true in Windows 10, version 2004.**
 > "Prior to Windows 10, version 2004, this function affects a global Windows setting… Starting
 > with Windows 10, version 2004, this function no longer affects global timer resolution. For
 > processes which call this function, Windows uses the lowest value requested by any process."
-> — [timeBeginPeriod](https://learn.microsoft.com/en-us/windows/win32/api/timeapi/nf-timeapi-timebeginperiod)
+> - [timeBeginPeriod](https://learn.microsoft.com/en-us/windows/win32/api/timeapi/nf-timeapi-timebeginperiod)
 
 The resolution is now **per-process**. So the old objection does not apply on any supported
 Windows version.
@@ -521,7 +521,7 @@ the same `PROCESS_POWER_THROTTLING_STATE`, and they pull in opposite directions:
 
 | Phase | `EXECUTION_SPEED` | `IGNORE_TIMER_RESOLUTION` |
 |---|---|---|
-| At rest (waiting for a trigger) | throttled — EcoQoS on | leave default |
+| At rest (waiting for a trigger) | throttled: EcoQoS on | leave default |
 | Executing a motion sequence | cleared | set, *only if* sub-15 ms steps are genuinely needed |
 
 Simpler and better: **we do not need the precision.** Movement steps are jittered anyway
@@ -532,23 +532,23 @@ disappears.
 If precision ever does become necessary, scope a `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION` timer
 to that sequence rather than changing process-wide state.
 
-### Gotcha 10 — `GetLastInputInfo` is session-scoped
+### Gotcha 10: `GetLastInputInfo` is session-scoped
 
 It reports input for the calling session only, and does not observe the secure desktop. Under
 RDP, the semantics differ again, and `GetSystemMetrics(SM_REMOTESESSION)` is how you detect
 that you are in one. A disconnected RDP session may have no interactive desktop at all, in
-which case injection is meaningless — detect and pause rather than logging failures forever.
+which case injection is meaningless, detect and pause rather than logging failures forever.
 
-### Gotcha 11 — `QueryFullProcessImageNameW`, not `GetModuleFileNameExW`
+### Gotcha 11: `QueryFullProcessImageNameW`, not `GetModuleFileNameExW`
 
 `GetModuleFileNameExW` fails across 32/64-bit process boundaries and on some protected
 processes. `QueryFullProcessImageNameW` with `PROCESS_QUERY_LIMITED_INFORMATION` works in
 every case that matters here.
 
-### Gotcha 12 — release keep-awake on exit
+### Gotcha 12: release keep-awake on exit
 
 If the process exits without clearing `ES_CONTINUOUS` (or without `PowerClearRequest` +
-`CloseHandle`), the state normally dies with the process — but a crash, a hung thread, or a
+`CloseHandle`), the state normally dies with the process, but a crash, a hung thread, or a
 Tauri shutdown path that never runs the cleanup can leave a machine that will not sleep long
 after the app is gone. Clear it in the `ExitRequested` handler *and* in a panic hook.
 

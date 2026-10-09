@@ -1,4 +1,4 @@
-/* project-mouse settings window. Follow Windows — no invented look (UI-UX §5). System light/dark,
+/* project-mouse settings window. Follow Windows, no invented look (UI-UX §5). System light/dark,
    Fluent 4px radius, one accent, greyscale otherwise. Motion budget per UI-UX §4. */
 
 :root {
@@ -124,7 +124,7 @@ body {
   * { transition: none !important; }
 }
 
-/* Rule builder + timer row (M3 completion). Layout only — no motion, per UI-UX §4. */
+/* Rule builder + timer row (M3 completion). Layout only, no motion, per UI-UX §4. */
 .builder {
   margin-top: 20px;
   border-top: 1px solid var(--border);
@@ -176,7 +176,7 @@ body {
   user-select: all;
 }
 
-/* Update notice on Status. Static — it appears when a check finds something and does nothing
+/* Update notice on Status. Static, it appears when a check finds something and does nothing
    until pressed (UPDATES.md §6: hint, never interrupt). */
 .update-banner {
   display: flex;
@@ -193,7 +193,7 @@ body {
   color: var(--text);
 }
 
-/* Home + sections (spec 005, UI-UX §0.5). Layout only — no motion. */
+/* Home + sections (spec 005, UI-UX §0.5). Layout only, no motion. */
 .content h2 { font-size: 13px; font-weight: 600; margin: 0 0 8px; }
 .section { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px; }
 

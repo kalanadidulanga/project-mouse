@@ -1,4 +1,4 @@
-//! Thin, **synchronous** Tauri commands (keeping tokio dormant — TAURI-V2 §0.2). Each is a wrapper
+//! Thin, **synchronous** Tauri commands (keeping tokio dormant, TAURI-V2 §0.2). Each is a wrapper
 //! over `core`; the React UI holds only a projection of state, never the state itself.
 
 use std::path::PathBuf;
@@ -148,7 +148,7 @@ pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<bool, String> {
     crate::set_autostart(&app, enabled)
 }
 
-/// "Why is my PC awake?" (E1). Never `Err` — a refused read comes back as `readable: false`, so
+/// "Why is my PC awake?" (E1). Never `Err`; a refused read comes back as `readable: false`, so
 /// the panel can say so rather than render a confident "nothing is held".
 #[tauri::command]
 pub fn why_awake(
@@ -174,7 +174,7 @@ pub fn list_profiles(
 ) -> Vec<ProfileSummary> {
     let live = engine.lock().unwrap().profile().clone();
     let mut list = stored.lock().unwrap().clone();
-    // The engine's copy is authoritative for the active profile — it may hold unsaved edits.
+    // The engine's copy is authoritative for the active profile, it may hold unsaved edits.
     profiles::upsert(&mut list, live.clone());
     list.into_iter()
         .map(|p| ProfileSummary {
@@ -241,7 +241,7 @@ pub fn delete_profile(
     {
         let mut list = stored.lock().unwrap();
         if !profiles::delete(&mut list, &id) {
-            return Err("that is the last profile — the app must always hold one".into());
+            return Err("that is the last profile; the app must always hold one".into());
         }
         // Deleting the active one means loading whatever is left.
         let mut e = engine.lock().unwrap();
@@ -269,7 +269,7 @@ pub fn set_input_settings(
 ) -> InputSettings {
     let mut ie = input.lock().unwrap();
     ie.set_settings(settings);
-    let applied = ie.settings(); // clamped — the UI shows what actually took effect
+    let applied = ie.settings(); // clamped, the UI shows what actually took effect
     drop(ie);
     crate::persist_current(&app);
     applied
@@ -318,7 +318,7 @@ pub fn import_move_mouse(
 #[derive(Serialize)]
 pub struct UpdateStatus {
     pub current: String,
-    /// The version a check found, or `None`. Not a promise that one does not exist — only that
+    /// The version a check found, or `None`. Not a promise that one does not exist, only that
     /// no check has found one yet.
     pub available: Option<String>,
     pub auto_check: bool,
@@ -338,7 +338,7 @@ pub fn set_auto_update(app: AppHandle, enabled: bool) {
     crate::set_auto_update(&app, enabled);
 }
 
-/// Check now, without installing — the manual counterpart to the background check (UPDATES.md §6).
+/// Check now, without installing, the manual counterpart to the background check (UPDATES.md §6).
 #[tauri::command]
 pub fn check_for_update(app: AppHandle) {
     tauri::async_runtime::spawn(crate::check_and_install(app, true));

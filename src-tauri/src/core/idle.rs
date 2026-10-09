@@ -1,5 +1,5 @@
 //! Two idle clocks + the self-injection filter (ARCHITECTURE §6). Pure: fed `GetTickCount`-style
-//! u32 ticks, no OS. This is the P0 core — without it the tool cannot tell that the user came back,
+//! u32 ticks, no OS. This is the P0 core, without it the tool cannot tell that the user came back,
 //! because it manufactures input indistinguishable from theirs.
 //!
 //! All ticks are u32 and compared with wrapping arithmetic (WINDOWS-API gotcha 1: 49-day wrap +
@@ -45,7 +45,7 @@ impl IdleTracker {
     }
 
     /// Observe the OS's last-input tick (`GetLastInputInfo.dwTime`). If it falls inside our last
-    /// injection, it was us — leave the human clock alone. Otherwise a real human moved.
+    /// injection, it was us, leave the human clock alone. Otherwise a real human moved.
     pub fn observe(&mut self, system_last_input: u32) {
         let is_ours = self
             .injected
@@ -91,7 +91,7 @@ mod tests {
         t.note_injection(180_000, 180_000);
         t.observe(180_000); // ours
         assert_eq!(t.human_idle_ms(180_500), 180_500);
-        // Real user moves at 181_000 — well outside the injection tolerance.
+        // Real user moves at 181_000, well outside the injection tolerance.
         t.observe(181_000);
         assert_eq!(t.human_idle_ms(181_000), 0); // stand-down: human is back
     }
@@ -118,7 +118,7 @@ mod tests {
         t.note_injection(1_000, 1_400);
         t.observe(1_400); // Windows' last input = the path's last step
         assert_eq!(t.human_idle_ms(1_500), 1_500);
-        t.observe(1_700); // 300 ms after the path — a person
+        t.observe(1_700); // 300 ms after the path, a person
         assert_eq!(t.human_idle_ms(1_700), 0);
     }
 

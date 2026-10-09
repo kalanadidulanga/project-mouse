@@ -2,8 +2,8 @@
 
 ## 0. The diagnosis
 
-Move Mouse's radial launcher — a mouse illustration ringed by orbiting icons with an animated
-arc — is the thing that "feels laggy sometimes". That is not a rendering bug to be optimised
+Move Mouse's radial launcher, a mouse illustration ringed by orbiting icons with an animated
+arc, is the thing that "feels laggy sometimes". That is not a rendering bug to be optimised
 away. It is structural, and it is worth naming precisely, because the same trap is easy to fall
 into again with a nicer font.
 
@@ -13,7 +13,7 @@ into again with a nicer font.
    interaction, when the user has already decided what they want. Any animation here is pure
    latency inserted between intent and action.
 2. **It runs a continuous animation for a static value.** The green arc is a progress ring for
-   "time until next action" — a number nobody watches, repainting forever in the background.
+   "time until next action", a number nobody watches, repainting forever in the background.
 3. **Radial layouts are slower to hit than lists.** Fitts's law: circular arrangements give every
    target the same distance and none of them an edge or corner to slam into. A vertical list
    beats a ring for anything above about four items.
@@ -30,11 +30,11 @@ into again with a nicer font.
 
 ---
 
-## 0.5 Amendment — 2026-10-09: the window comes first
+## 0.5 Amendment, 2026-10-09: the window comes first
 
 §0's diagnosis of the radial launcher still stands. §1 drew the wrong conclusion from it: it
 put the window last. In practice a user who sees no window concludes that nothing happened, and
-that is what the owner concluded about v0.2.1 (see [PRODUCT §0](PRODUCT.md#0-direction-change--2026-10-09)).
+that is what the owner concluded about v0.2.1 (see [PRODUCT §0](PRODUCT.md#0-direction-change-2026-10-09)).
 
 **What changes:**
 
@@ -89,7 +89,7 @@ mascot, no custom title bar) and §7 accessibility.
 
 ---
 
-## 1. Interaction model — three tiers
+## 1. Interaction model: three tiers
 
 > ⚠️ Superseded in part by §0.5 (2026-10-09): the window now opens at launch, and the tray menu
 > is Start|Stop.
@@ -101,33 +101,33 @@ it by frequency:
 |---|---|---|---|
 | **1. Glance** | Tray icon + tooltip | Constant | Free |
 | **2. Act** | Native tray context menu | Several times a day | ~0 MB, instant |
-| **3. Configure** | Webview settings window | Twice a week | ~130 MB, ~180 ms — and destroyed on close |
+| **3. Configure** | Webview settings window | Twice a week | ~130 MB, ~180 ms, and destroyed on close |
 
-### Tier 1 — the tray icon answers the only question that matters
+### Tier 1: the tray icon answers the only question that matters
 
 Four states, four distinct silhouettes. **Distinguishable at 16×16 in grayscale**, which is the
-real constraint — a colour-only difference is invisible on a busy taskbar and useless to a
+real constraint, a colour-only difference is invisible on a busy taskbar and useless to a
 colourblind user.
 
 | State | Icon | Tooltip |
 |---|---|---|
-| Keep presenting | Filled, bright | `Keeping display on — until 18:00` |
-| Keep running | Filled | `Keeping awake — while msbuild.exe is running` |
+| Keep presenting | Filled, bright | `Keeping display on until 18:00` |
+| Keep running | Filled | `Keeping awake while msbuild.exe is running` |
 | Off | Outline | `Not holding anything` |
-| Auto-paused | Outline + dot | `Paused — a fullscreen app is running` |
-| Blocked | Outline + warning | `Input blocked — an elevated window has focus` |
+| Auto-paused | Outline + dot | `Paused: a fullscreen app is running` |
+| Blocked | Outline + warning | `Input blocked: an elevated window has focus` |
 
 Note what the tooltip says: **not what the app is doing, but what is currently true of the
 machine, and why.** "Active" tells the user nothing they could act on. "Keeping awake while
 msbuild.exe is running" answers the question they actually have.
 
 The **Blocked** state is the one nobody builds and everybody needs. Because `SendInput` fails
-undetectably under UIPI ([WINDOWS-API gotcha 3](WINDOWS-API.md#gotcha-3--sendinput-fails-undetectably-under-uipi)),
+undetectably under UIPI ([WINDOWS-API gotcha 3](WINDOWS-API.md#gotcha-3-sendinput-fails-undetectably-under-uipi)),
 the app must verify via cursor read-back and then *say so*. "It's running but nothing is
 happening" is the most common support complaint about every tool in this category, and a tooltip
 answers it for free.
 
-### Tier 2 — the native menu is the actual product
+### Tier 2: the native menu is the actual product
 
 ```
 ┌────────────────────────────────────────────┐
@@ -163,14 +163,14 @@ the system theme automatically, and works with a screen reader without any effor
 
 **Pause / Resume and profile switching are ~90% of all real interactions, and none of them
 should ever open a window.** That single decision does more for perceived performance than any
-amount of frontend optimisation — and it is exactly what the radial launcher gets wrong by
+amount of frontend optimisation, and it is exactly what the radial launcher gets wrong by
 routing everything through an animated surface.
 
 > Note what this does for the memory budget: a user who only ever pauses and switches profiles
-> never creates a webview at all. The 8 MB figure is not a best case for such a user — it is
+> never creates a webview at all. The 8 MB figure is not a best case for such a user, it is
 > their entire experience of the app.
 
-### Tier 3 — the settings window
+### Tier 3: the settings window
 
 Created on demand, destroyed on close. Small, fixed size, not resizable, not maximisable.
 
@@ -181,7 +181,7 @@ Created on demand, destroyed on close. Small, fixed size, not resizable, not max
 > ⚠️ Superseded by §0.5 (2026-10-09): the rail is Home / Settings / Advanced.
 
 **640 × 480, fixed.** Not resizable. A settings window that can be dragged to 1920px wide is a
-window whose layout you now have to defend at every width, for no benefit — nobody wants a
+window whose layout you now have to defend at every width, for no benefit, nobody wants a
 fullscreen mouse jiggler.
 
 ```
@@ -220,7 +220,7 @@ already looking.
 
 ---
 
-## 3. The rule builder — plain language, not a node graph
+## 3. The rule builder: plain language, not a node graph
 
 This is the hardest screen and the one most likely to go wrong. The temptation is a visual
 node-graph editor. Resist it: it is weeks of work, it is hard to make accessible, and it makes
@@ -251,11 +251,11 @@ Rules read as English sentences with the variables as inline dropdowns:
 
 Each `▸ chip` is a dropdown. Adding a condition appends a chip. The whole rule stays readable as
 a sentence at every stage of editing, which means a user can verify their intent by reading it
-back — the thing node graphs are worst at.
+back, the thing node graphs are worst at.
 
 **`Keep` and `While` are the common case; `Then` is the exception.** Most rules hold a power
 state under conditions and dispatch nothing at all. A rule that synthesizes input carries a
-visible marker on the row itself — not a warning dialog, just an honest label, so that scanning
+visible marker on the row itself, not a warning dialog, just an honest label, so that scanning
 the list tells you which rules touch input and which do not.
 
 **Every rule ships disabled-by-default when created from a template**, and the toggle is on the
@@ -274,18 +274,18 @@ The complaint was lag. Here is the rule that prevents it coming back:
 | Tab / page switch | None, or ≤80 ms opacity |
 | Toggle, checkbox | ≤120 ms |
 | Dropdown, popover | ≤150 ms, opacity + 4px translate |
-| Progress (update download) | Continuous — it represents real work |
+| Progress (update download) | Continuous, it represents real work |
 | **Anything else** | **None** |
 
 Hard rules:
 
-- **Never animate `width`, `height`, `top`, or `left`.** `transform` and `opacity` only — they
+- **Never animate `width`, `height`, `top`, or `left`.** `transform` and `opacity` only, they
   are the only two properties the compositor can handle without a layout pass.
 - **No looping animation, ever.** No pulsing dots, no spinning gears, no progress ring counting
   down to the next action. A looping animation in a settings window is a repaint every frame for
   a value that changes once a minute. This is the specific thing that makes Move Mouse feel
   heavy.
-- **Respect `prefers-reduced-motion`** — drop to zero across the board.
+- **Respect `prefers-reduced-motion`**: drop to zero across the board.
 - The "next action in 42s" counter updates **once per second, as text**. No ring, no sweep.
 
 The perceived-speed win is not in making animations faster. It is in not having them.
@@ -297,7 +297,7 @@ The perceived-speed win is not in making animations faster. It is in not having 
 **Follow Windows. Do not invent a look.**
 
 A background utility that looks like a Windows utility is trusted. One with a custom gradient
-theme and a mascot looks like something that was bundled with a driver download — which is a
+theme and a mascot looks like something that was bundled with a driver download, which is a
 serious problem for an app that is already fighting an AV-reputation battle.
 
 ```css
@@ -309,14 +309,14 @@ serious problem for an app that is already fighting an AV-reputation battle.
 --space:  4px;          /* everything is a multiple */
 ```
 
-- **Follow the system light/dark preference.** No in-app theme switcher in v1 — it is a setting
+- **Follow the system light/dark preference.** No in-app theme switcher in v1, it is a setting
   nobody changes and a code path everybody has to maintain.
 - **Accent colour: the user's Windows accent**, read from the system. Free personalisation, zero
   design decisions, and it makes the app look like it belongs.
 - **One accent colour only.** Green for "active" and red for "error" are the only semantic
   colours. Everything else is greyscale.
 - **No custom title bar in v1.** `decorations: true`. A custom title bar means reimplementing
-  drag, snap layouts, and the Windows 11 maximise flyout — real work, zero user benefit, and it
+  drag, snap layouts, and the Windows 11 maximise flyout, real work, zero user benefit, and it
   is the classic way an app starts feeling non-native.
 - **No Mica or Acrylic in v1.** They require `transparent: true`, Mica is Windows 11-only, and
   the Tauri schema documents *"bad performance when resizing/dragging"* for Acrylic and Blur on
@@ -325,7 +325,7 @@ serious problem for an app that is already fighting an AV-reputation battle.
 
 ### Density
 
-Comfortable, not compact. This window opens twice a week — it is not a trading terminal. 32px
+Comfortable, not compact. This window opens twice a week, it is not a trading terminal. 32px
 row heights, 16px gutters, generous whitespace. The content is thin; let it breathe rather than
 inventing filler to justify a dense grid.
 
@@ -333,7 +333,7 @@ inventing filler to justify a dense grid.
 
 ## 6. Where the donate and social links go
 
-They belong in the project, not in the hot path. **About page only** — reached from the tray
+They belong in the project, not in the hot path. **About page only**, reached from the tray
 menu or the left rail, never adjacent to Settings or Close.
 
 An open-source project should absolutely ask for support. It should not put a PayPal button one
@@ -343,7 +343,7 @@ pixel-slip away from the control the user actually reached for, several times a 
 
 ## 7. Accessibility
 
-Cheap to do now, expensive to retrofit, and this app has a real accessibility audience —
+Cheap to do now, expensive to retrofit, and this app has a real accessibility audience,
 "prevent the screen locking while I read" is an assistive use case.
 
 - **Full keyboard navigation.** Tab order follows visual order; every control reachable; visible
@@ -352,7 +352,7 @@ Cheap to do now, expensive to retrofit, and this app has a real accessibility au
 - **Contrast ≥ 4.5:1** for text, ≥ 3:1 for UI boundaries.
 - **Never colour alone.** The tray icon states differ in *shape*; status differs in *text*.
 - **`prefers-reduced-motion`** honoured.
-- **Windows High Contrast mode** — use system colour keywords rather than hardcoded hex where
+- **Windows High Contrast mode**: use system colour keywords rather than hardcoded hex where
   the platform provides them.
 
 ---
@@ -374,7 +374,7 @@ The most important screen in the app, and the one most projects skip.
 │    What are you trying to do?                              │
 │                                                             │
 │      ◉  Finish a long job     Builds, renders, transfers    │
-│                               Screen may sleep — work won't │
+│                               Screen may sleep, work won't  │
 │      ○  Keep a screen up      Dashboards, presentations     │
 │      ○  Let me set it up      Start from an empty profile   │
 │                                                             │
@@ -386,10 +386,10 @@ One question, three answers, each creating a working profile. The user is runnin
 seconds and never has to meet the rule builder unless they want to.
 
 **Neither default enables input synthesis.** The first run of this application does not
-synthesize a single event, and it should not need to explain that — it should simply be true,
+synthesize a single event, and it should not need to explain that, it should simply be true,
 and discoverable later by anyone who goes looking.
 
-Then it closes — and **destroys itself**, dropping straight to the 8 MB steady state. The first
+Then it closes, and **destroys itself**, dropping straight to the 8 MB steady state. The first
 thing the user experiences is the thing the whole architecture is for.
 
 ---
@@ -399,5 +399,5 @@ thing the user experiences is the thing the whole architecture is for.
 Before adding anything to the UI, three questions:
 
 1. **Does this need a window?** If it can live in the tray menu, it must.
-2. **Does this move?** If yes, why — and does it represent real work in progress?
+2. **Does this move?** If yes, why, and does it represent real work in progress?
 3. **Would this look out of place next to Task Manager?** If yes, it is wrong.

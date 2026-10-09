@@ -1,4 +1,4 @@
-//! The sampled state a tick evaluates rules against. Plain data — the OS-specific sampling that
+//! The sampled state a tick evaluates rules against. Plain data, the OS-specific sampling that
 //! fills it lives behind `platform/` (Phase 3), which is what keeps the evaluator Win32-free and
 //! unit-testable: a test just builds a `Snapshot` by hand.
 
@@ -6,7 +6,7 @@ use crate::core::rule::NotifState;
 
 #[derive(Debug, Clone)]
 pub struct Snapshot {
-    /// Unix seconds — for expiry comparisons.
+    /// Unix seconds, for expiry comparisons.
     pub epoch_secs: u64,
     /// Local weekday, 0 = Monday .. 6 = Sunday.
     pub weekday: u8,

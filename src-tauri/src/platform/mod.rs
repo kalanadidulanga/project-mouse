@@ -34,7 +34,7 @@ pub trait PowerGuard: Send + Sync {
 }
 
 /// Names of currently-running processes (executable file names). The caller cadence-limits how
-/// often it asks — enumeration is ~1-3 ms. FEATURES B1.
+/// often it asks, enumeration is ~1-3 ms. FEATURES B1.
 pub trait ProcessMonitor: Send + Sync {
     fn running_process_names(&self) -> Vec<String>;
 }
@@ -47,7 +47,7 @@ pub trait ForegroundMonitor: Send + Sync {
 }
 
 /// The machine-wide `EXECUTION_STATE` aggregate, for "Why is my PC awake?" (FEATURES E1).
-/// `None` means the OS refused the read — which is not the same as "nothing is held", and the
+/// `None` means the OS refused the read, which is not the same as "nothing is held", and the
 /// two must never be collapsed.
 pub trait PowerInspector: Send + Sync {
     fn execution_state(&self) -> Option<u32>;
@@ -65,7 +65,7 @@ pub trait PowerSource: Send + Sync {
 }
 
 /// Synthetic input (the opt-in engine, FEATURES Part C). A non-error return does NOT mean the input
-/// landed — UIPI can discard it silently (gotcha 3); verify via the idle clock (C7).
+/// landed, UIPI can discard it silently (gotcha 3); verify via the idle clock (C7).
 pub trait InputInjector: Send + Sync {
     /// A virtual jiggle: net-zero visible cursor movement that still resets the idle timer (C1).
     fn virtual_jiggle(&self) -> Result<()>;
@@ -79,7 +79,7 @@ pub trait InputInjector: Send + Sync {
 // ponytail: autostart is handled by the cross-platform `tauri-plugin-autostart` (HKCU\Run on
 // Windows) at the shell layer, so it needs no trait in this OS-abstraction boundary.
 
-/// What the current OS can actually do — the UI asks rather than assumes (CROSS-PLATFORM §2).
+/// What the current OS can actually do, the UI asks rather than assumes (CROSS-PLATFORM §2).
 #[derive(Debug, Clone, Copy)]
 #[allow(dead_code)] // consumed by the capability-aware UI in M3
 pub struct Capabilities {
@@ -141,7 +141,7 @@ pub fn local_time() -> (u8, u16) {
     }
 }
 
-/// Raw `GetLastInputInfo.dwTime` tick (u32) — for the self-injection filter. 0 off Windows.
+/// Raw `GetLastInputInfo.dwTime` tick (u32), for the self-injection filter. 0 off Windows.
 pub fn last_input_tick() -> u32 {
     #[cfg(windows)]
     {
@@ -153,7 +153,7 @@ pub fn last_input_tick() -> u32 {
     }
 }
 
-/// Raw `GetTickCount` (u32) — same clock domain as `last_input_tick`. 0 off Windows.
+/// Raw `GetTickCount` (u32), same clock domain as `last_input_tick`. 0 off Windows.
 pub fn tick_now() -> u32 {
     #[cfg(windows)]
     {

@@ -1,5 +1,5 @@
 // The rule builder. Every `Condition` variant the Rust evaluator understands is reachable from
-// here — the UI is the control surface, not a subset of it (core/rule.rs is the source of truth).
+// here, the UI is the control surface, not a subset of it (core/rule.rs is the source of truth).
 // Conditions on one rule are ANDed; separate rules combine by taking the strongest mode.
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -116,7 +116,7 @@ const KINDS: [Kind, string][] = [
   ["notfg", "an app is NOT in the foreground"],
 ];
 
-/** One condition, built and handed back. Nesting (Not/AnyOf/AllOf) is deliberately not exposed —
+/** One condition, built and handed back. Nesting (Not/AnyOf/AllOf) is deliberately not exposed,
  *  UI-UX §3 rules out a node graph; AND comes from stacking conditions, OR from separate rules. */
 function ConditionForm({ onAdd }: { onAdd: (c: Condition) => void }) {
   const [kind, setKind] = useState<Kind>("process");
@@ -290,7 +290,7 @@ export default function RulesPage() {
     <>
       <h2>Rules</h2>
       <p className="note">
-        A rule keeps the machine awake while all of its conditions hold. New rules start disabled —
+        A rule keeps the machine awake while all of its conditions hold. New rules start disabled;
         turn one on when you want it. Two rules that disagree resolve to the stronger mode.
       </p>
 

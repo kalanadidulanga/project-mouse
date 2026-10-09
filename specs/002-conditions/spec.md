@@ -1,4 +1,4 @@
-# Feature Specification: M2 — Conditions (the rule engine)
+# Feature Specification: M2: Conditions (the rule engine)
 
 **Feature Branch**: `002-conditions`
 
@@ -6,21 +6,21 @@
 
 **Status**: Draft
 
-**Input**: ROADMAP.md M2. The reason to build this rather than use PowerToys Awake — bind the wake
+**Input**: ROADMAP.md M2. The reason to build this rather than use PowerToys Awake, bind the wake
 lock to real conditions so it holds *only when needed*. Implements FEATURES B1, B2, B3, B5, B6, B7,
 B10, B12, D2, D3. Authoritative design: `docs/ARCHITECTURE.md §5` (rule engine + tick),
 `docs/FEATURES.md Part B`, `docs/WINDOWS-API.md`.
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 — Keep awake while a process runs (Priority: P1) 🎯 flagship
+### User Story 1: Keep awake while a process runs (Priority: P1) 🎯 flagship
 
 A developer sets a rule: *Keep running while `msbuild.exe` is running*. The machine stays awake for
-the whole build and releases within a few seconds of it finishing — even if the build tool exits
+the whole build and releases within a few seconds of it finishing, even if the build tool exits
 and respawns under a new PID.
 
 **Why this priority**: The single most-requested unserved primitive (PowerToys #27980, still open).
-One rule covers builds, renders, training runs, transfers, backups, AI agents — most of PRODUCT §3.
+One rule covers builds, renders, training runs, transfers, backups, AI agents, most of PRODUCT §3.
 
 **Independent Test**: Create a process-bound rule, start/stop the named process, watch
 `powercfg /requests` acquire within one tick and release within ~5 s of exit. Kill+respawn the
@@ -34,7 +34,7 @@ process under a new PID → the lock is held continuously.
 3. **Given** the process exits and respawns under a new PID, **When** ticks continue, **Then** the
    request is held continuously (match by **name**, not PID).
 
-### User Story 2 — Bind to time: schedule and expiry (Priority: P1)
+### User Story 2: Bind to time: schedule and expiry (Priority: P1)
 
 A user keeps a wallboard awake weekdays 08:00–18:00, and separately says "keep awake for 2 hours"
 before stepping away. Both release automatically.
@@ -54,10 +54,10 @@ change/resume; an expiry rule releases at the stated time with remaining time sh
 3. **Given** a schedule, **When** the machine sleeps/resumes or the timezone changes
    (`WM_TIMECHANGE`), **Then** the window is recomputed against local time (no wrong-hour firing).
 
-### User Story 3 — Guards: power, session, presentation (Priority: P2)
+### User Story 3: Guards: power, session, presentation (Priority: P2)
 
 Rules respect reality: pause below 20% battery, stop when the workstation locks (unless explicitly
-allowed), and — for presentations — keep the display on while never being surprising.
+allowed), and, for presentations, keep the display on while never being surprising.
 
 **Why this priority**: Prevents the tool from flattening a laptop, and `SHQueryUserNotificationState`
 gives fullscreen/game/presentation/locked detection in one cheap call (four features).
@@ -75,7 +75,7 @@ configured.
 3. **Given** presentation/fullscreen/locked, **When** a tick samples `SHQueryUserNotificationState`,
    **Then** the corresponding condition evaluates correctly (one call, not window-rect heuristics).
 
-### User Story 4 — Composition, profiles, hotkey (Priority: P2)
+### User Story 4: Composition, profiles, hotkey (Priority: P2)
 
 A power user writes *weekdays 09:00–18:00, while `msbuild.exe` runs, on AC, unless presenting* as
 one rule; groups rules into a **Long build** profile; and toggles everything with a global hotkey.
@@ -97,16 +97,16 @@ snapshot. Switching profiles changes the active rule set. A hotkey toggles witho
 
 ### Edge Cases
 
-- **Combine by maximum** — if several rules contribute different modes, the strongest wins; no rule
+- **Combine by maximum**: if several rules contribute different modes, the strongest wins; no rule
   can weaken another (carried from M1).
-- **Process enumeration cost** — sampled at a slower cadence (~5 s) than the 1 s tick; cheap state
+- **Process enumeration cost**: sampled at a slower cadence (~5 s) than the 1 s tick; cheap state
   (idle/session/foreground/notification) sampled every tick.
-- **49-day `GetTickCount` wrap / non-monotonic `dwTime`** — idle-based conditions must clamp
+- **49-day `GetTickCount` wrap / non-monotonic `dwTime`**: idle-based conditions must clamp
   (WINDOWS-API gotcha 1). (Idle-as-guard is M2-lite; full idle gating is M4.)
-- **Resume from sleep** — re-arm and re-evaluate immediately; a schedule must not fire at the wrong
+- **Resume from sleep**: re-arm and re-evaluate immediately; a schedule must not fire at the wrong
   hour after hours asleep.
-- **Rule referencing an unavailable capability** — fail loudly / disable, never silently never-fire.
-- **DST / timezone** — store local time + IANA zone; recompute on resume and `WM_TIMECHANGE`.
+- **Rule referencing an unavailable capability**: fail loudly / disable, never silently never-fire.
+- **DST / timezone**: store local time + IANA zone; recompute on resume and `WM_TIMECHANGE`.
 
 ## Requirements *(mandatory)*
 
@@ -148,7 +148,7 @@ snapshot. Switching profiles changes the active rule set. A hotkey toggles witho
 
 - **Rule**: `{ id, name, enabled, conditions: Vec<Condition>, mode: WakeMode }` (M2 = power only;
   triggers/actions for the input engine arrive in M4).
-- **Condition**: enum — `ProcessRunning`, `TimeWindow`, `Expiry`, `OnACPower`, `BatteryAbove`,
+- **Condition**: enum: `ProcessRunning`, `TimeWindow`, `Expiry`, `OnACPower`, `BatteryAbove`,
   `SessionUnlocked`, `UserNotificationState`, `ForegroundAppIn/NotIn`, `Not`, `AnyOf`, `AllOf`.
 - **Snapshot**: the sampled state a tick evaluates against (idle, foreground, session, notification
   state, now; plus cadence-limited process list, CPU, battery). Enables Win32-free unit tests.
@@ -162,7 +162,7 @@ From ROADMAP M2 exit criteria.
 
 - **SC-001**: `--while-process msbuild.exe` (or a UI rule) holds while it runs, releases within 5 s
   of exit.
-- **SC-002**: Process matching survives a **PID change** (exit + respawn) — lock held continuously.
+- **SC-002**: Process matching survives a **PID change** (exit + respawn), lock held continuously.
 - **SC-003**: Expiry releases at the stated time; remaining time visible in the tooltip.
 - **SC-004**: A schedule survives sleep/resume and a timezone change (`WM_TIMECHANGE`).
 - **SC-005**: Battery below 20% releases; back on AC re-acquires.
@@ -170,7 +170,7 @@ From ROADMAP M2 exit criteria.
   `SHQueryUserNotificationState` and act as configured.
 - **SC-007**: Two rules wanting different modes → the machine holds the **stronger** one; a rule can
   never weaken another.
-- **SC-008**: The rule engine is fully unit-tested against `MockPlatform`/`Snapshot` — **no Win32 in
+- **SC-008**: The rule engine is fully unit-tested against `MockPlatform`/`Snapshot`, **no Win32 in
   the test suite**.
 - **SC-009**: A global hotkey toggles without any window existing.
 - **SC-010**: Idle 10 min with rules active: CPU ≤ 0.05 %, working set within the M1 budget.
@@ -178,7 +178,7 @@ From ROADMAP M2 exit criteria.
 ## Assumptions
 
 - Windows only for M2; other OSes remain compiling stubs behind the traits.
-- **Power only** — no input synthesis (M4). Conditions gate the *held* `WakeMode`; triggers/actions
+- **Power only**: no input synthesis (M4). Conditions gate the *held* `WakeMode`; triggers/actions
   for events come in M4.
 - Config migrates v1→v2 to add profiles/rules; a v1 file (bare `mode`) becomes a single default
   profile.

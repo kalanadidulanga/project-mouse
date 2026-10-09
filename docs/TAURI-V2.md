@@ -1,7 +1,7 @@
-# Tauri v2 — the parts that matter here
+# Tauri v2: the parts that matter here
 
 Verified against the v2 docs, the config JSON schema, `docs.rs/tauri`, and the Tauri source
-where the guide pages are silent — which turns out to be often. **Several of the most important
+where the guide pages are silent, which turns out to be often. **Several of the most important
 things in this document are not on the documentation site at all.**
 
 ---
@@ -10,14 +10,14 @@ things in this document are not on the documentation site at all.**
 
 ### 1. `destroy()` freeing the webview is **undocumented**
 
-The docs say only: `destroy()` — *"Similar to `close` but does not emit any events and force
+The docs say only: `destroy()`, *"Similar to `close` but does not emit any events and force
 close the window instead."* There is **no statement anywhere in Tauri's documentation about
 memory or resource release on window destruction.** Each WebView2 window runs its own browser
 and GPU processes, and whether destroying the last webview tears down the shared WebView2
 environment is not documented either.
 
-The entire ≤8 MB idle budget rests on this. **Prototype and measure it first** — before the
-rule engine, before the UI. See [ARCHITECTURE §3](ARCHITECTURE.md#3-window-lifecycle--where-the-memory-budget-lives).
+The entire ≤8 MB idle budget rests on this. **Prototype and measure it first**, before the
+rule engine, before the UI. See [ARCHITECTURE §3](ARCHITECTURE.md#3-window-lifecycle-where-the-memory-budget-lives).
 
 ### 2. `tokio` cannot be removed
 
@@ -28,7 +28,7 @@ No feature flag drops it.
 What *is* controllable: Tauri stores the runtime in a `static OnceLock` and builds it lazily on
 the first `spawn`/`block_on`. **Non-`async` commands run on the main thread and never touch it.**
 So: make every command in this app synchronous, and no worker threads exist at idle. The updater
-is the one async path — it materialises a *multi-threaded* runtime for the process lifetime.
+is the one async path, it materialises a *multi-threaded* runtime for the process lifetime.
 Run update checks on a dedicated `std::thread` with a `current_thread` runtime instead.
 
 ### 3. `titleBarStyle` is macOS-only
@@ -46,7 +46,7 @@ is `"skipTaskbar": true`.
 
 ## 1. Starting with no window
 
-`AppConfig.windows` **defaults to `[]`** — the window in every scaffolded template is a template
+`AppConfig.windows` **defaults to `[]`**, the window in every scaffolded template is a template
 artifact, not a framework requirement.
 
 Better than deleting it: keep the window declared with `"create": false`, so its geometry and
@@ -85,12 +85,12 @@ tauri::Builder::default()
 
 | `code` | Meaning | What we want |
 |---|---|---|
-| `None` | User closed the last window | **Prevent** — stay in the tray |
+| `None` | User closed the last window | **Prevent**, stay in the tray |
 | `Some(0)` | Our own `app.exit(0)` from the tray Quit item | Allow |
-| `Some(i32::MAX)` | `RESTART_EXIT_CODE` — updater restart | Allow |
+| `Some(i32::MAX)` | `RESTART_EXIT_CODE`, updater restart | Allow |
 
 Match unconditionally and **the app becomes unquittable.** The tray's own Quit menu item stops
-working and the user has to reach for Task Manager — for an app that already looks like malware.
+working and the user has to reach for Task Manager, for an app that already looks like malware.
 
 Tauri handles the third case itself: `prevent_exit()` is a documented no-op during a restart
 (`if self.code != Some(RESTART_EXIT_CODE)`), so the updater is never blocked by this handler.
@@ -99,7 +99,7 @@ Tauri handles the third case itself: `prevent_exit()` is a documented no-op duri
 
 ## 3. Tray icon
 
-**`tray-icon` is not a default Cargo feature.** A build without it has no tray and no window —
+**`tray-icon` is not a default Cargo feature.** A build without it has no tray and no window,
 i.e. it silently does nothing.
 
 ```toml
@@ -108,7 +108,7 @@ tauri = { version = "2", default-features = false, features = [
 ] }
 ```
 
-(Windows default features include `x11` and `dbus`, which gate Linux runtime features — dead
+(Windows default features include `x11` and `dbus`, which gate Linux runtime features, dead
 weight here.)
 
 ```rust
@@ -116,7 +116,7 @@ use tauri::{menu::{Menu, MenuItem}, tray::{MouseButton, MouseButtonState, TrayIc
 
 let tray = TrayIconBuilder::with_id("main")
     .icon(active_icon.clone())
-    .tooltip("project-mouse — active · next in 42s")
+    .tooltip("project-mouse: Running · next move in 0:42")
     .menu(&menu)
     .show_menu_on_left_click(false)      // left = open window, right = menu
     .on_menu_event(|app, ev| match ev.id.as_ref() {
@@ -141,7 +141,7 @@ warns that the config path *"stores the image in raw pixels to the final binary�
 bloat your final executable."*
 
 ⚠️ **The official system-tray example does the wrong thing for us.** It calls
-`window.unminimize(); window.show(); window.set_focus();` — which assumes a resident hidden
+`window.unminimize(); window.show(); window.set_focus();`: which assumes a resident hidden
 window. Following it verbatim gives a permanently resident WebView2 tree and blows the budget.
 We need the inverse: create on click, destroy on close.
 
@@ -167,13 +167,13 @@ correct; the explicit handler exists only to make sure nobody "fixes" it into a 
 })
 ```
 
-**`backgroundThrottling`** (`BackgroundThrottlingPolicy`) defaults to `suspend` — *"a web view
+**`backgroundThrottling`** (`BackgroundThrottlingPolicy`) defaults to `suspend`, *"a web view
 that's not in a window fully suspends tasks"*. Leave it unset. Never set `disabled`; that burns
 CPU in a backgrounded webview.
 
 **`noRedirectionBitmap`** (Windows-only) sets `WS_EX_NOREDIRECTIONBITMAP` and *"can avoid the
 white flash that may appear before the webview content is rendered when using a transparent
-window"* — relevant if we enable Mica, which requires transparency.
+window"*, relevant if we enable Mica, which requires transparency.
 
 ---
 
@@ -184,12 +184,12 @@ window"* — relevant if we enable Mica, which requires transparency.
 | Effect | Support |
 |---|---|
 | `mica`, `micaDark`, `micaLight`, `tabbed*` | **Windows 11 only** |
-| `acrylic` | Windows 10 v1903+ / 11 — *"bad performance when resizing/dragging"* on 10 v1903+ and 11 build 22000 |
-| `blur` | Windows 7/10/11 22H1 — *"bad performance when resizing/dragging"* on 11 build 22621 |
+| `acrylic` | Windows 10 v1903+ / 11, *"bad performance when resizing/dragging"* on 10 v1903+ and 11 build 22000 |
+| `blur` | Windows 7/10/11 22H1, *"bad performance when resizing/dragging"* on 11 build 22621 |
 
 So there is no single value that looks right on both Windows 10 and 11. Branch at runtime on
-`tauri_plugin_os::version()`, or — given the perf warnings on resize and the fact that our
-window is small and non-resizable — **just paint a flat solid background and skip effects
+`tauri_plugin_os::version()`, or, given the perf warnings on resize and the fact that our
+window is small and non-resizable, **just paint a flat solid background and skip effects
 entirely.** A crisp opaque surface at 8 MB beats a translucent one that stutters. Revisit only
 if the design genuinely calls for it.
 
@@ -198,23 +198,23 @@ make undecorated window have a 1px white border, and on Windows 11, rounded corn
 
 ---
 
-## 6. Plugins — the minimal set
+## 6. Plugins: the minimal set
 
 | Plugin | Verdict |
 |---|---|
 | `tauri-plugin-updater` | **Yes.** Core requirement. |
 | `tauri-plugin-single-instance` | **Yes.** Must be registered *first* to work. |
-| `tauri-plugin-autostart` | **Yes.** `init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"]))` — the args vec is how the startup flag is passed. |
+| `tauri-plugin-autostart` | **Yes.** `init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"]))`, the args vec is how the startup flag is passed. |
 | `tauri-plugin-global-shortcut` | Optional (M2). Ideal for a windowless toggle. |
 | `tauri-plugin-process` | **No.** Only needed if the *frontend* calls `relaunch()`. Rust has `app.exit()` / `app.restart()` already. |
 | `tauri-plugin-store` | **No.** Its writes are async → instantiates tokio. A `serde_json` write to `app.path().app_config_dir()` is lighter and we already need atomic-write logic. |
 | `tauri-plugin-log` | **No.** We use `tracing` directly. |
-| `tauri-plugin-os` | Only if we branch on Windows version for effects — and §5 argues we shouldn't. |
+| `tauri-plugin-os` | Only if we branch on Windows version for effects, and §5 argues we shouldn't. |
 | `tauri-plugin-window-state` | **No.** It saves state on app close, and this app never closes. |
 | `tauri-plugin-notification` | M2, for error toasts. |
 
 ⚠️ **The single-instance doc example panics in this app.** It does
-`app.get_webview_window("main").expect("no main window").set_focus()` — and there is usually no
+`app.get_webview_window("main").expect("no main window").set_focus()`: and there is usually no
 main window. Use the callback to create the window, or just flash the tray.
 
 ---
@@ -238,7 +238,7 @@ main window. Use the callback to create the window, or just flash the tray.
 ```
 
 **`targets: ["nsis"]`, not `"all"`.** MSI can only be built on Windows (WiX) and additionally
-requires the VBSCRIPT optional Windows feature — the mysterious `failed to run light.exe`.
+requires the VBSCRIPT optional Windows feature, the mysterious `failed to run light.exe`.
 
 **`installMode: "currentUser"`** (the default) installs to `%LOCALAPPDATA%` with metadata under
 `HKCU`. This is the **only mode where updates install without a UAC prompt**, and a tray utility
@@ -258,7 +258,7 @@ WebView2 ships with Windows 10 (April 2018+) and Windows 11, so the bootstrapper
 runs. Note the schema also says *"for the updater bundle `DownloadBootstrapper` is used"*
 regardless of this setting.
 
-**`withGlobalTauri: false`** (the default) — `true` injects the entire JS API onto
+**`withGlobalTauri: false`** (the default), `true` injects the entire JS API onto
 `window.__TAURI__`.
 
 ---
@@ -271,7 +271,7 @@ Tauri's official release profile:
 [profile.release]
 codegen-units = 1
 lto = true
-opt-level = "s"   # "z" is smaller still — try both and measure
+opt-level = "s"   # "z" is smaller still, try both and measure
 panic = "abort"
 strip = true
 ```
@@ -291,7 +291,7 @@ webviews of the app."*
 
 ⚠️ **Security boundaries key on the window *label*, not the title.** A capability listing
 `"windows": ["main"]` matches only a window whose label is `main`. Get it wrong and every
-`invoke` fails at runtime — but only after the user opens the window, so it will not show up in
+`invoke` fails at runtime, but only after the user opens the window, so it will not show up in
 a smoke test.
 
 ⚠️ **Do not write `"core:default"`.** It pulls in nine permission sets and defeats
@@ -315,7 +315,7 @@ a smoke test.
 
 `core:resources:allow-close` is needed because the JS `Update` object is a `Resource` with an
 `rid`. If update checks are funnelled through our own `fetch_update` / `install_update` commands
-(see [UPDATES.md](UPDATES.md)), `updater:default` is not needed at all — the frontend never
+(see [UPDATES.md](UPDATES.md)), `updater:default` is not needed at all, the frontend never
 touches the plugin directly.
 
 Restrict our own commands too, via `build.rs`, which also feeds `removeUnusedCommands`:
@@ -336,14 +336,14 @@ tauri_build::try_build(
 
 ## 10. IPC
 
-**Every command in this app is synchronous and non-`async`** — see §0.2. That is not a
+**Every command in this app is synchronous and non-`async`**: see §0.2. That is not a
 stylistic preference; it is what keeps tokio dormant.
 
 - *"Command names must be unique"* across the whole app, even across modules.
 - Commands in `lib.rs` **cannot** be `pub`; commands in a separate module **must** be.
-- `invoke_handler` can only be called once — the last call wins.
+- `invoke_handler` can only be called once, the last call wins.
 - Events *"directly evaluate JavaScript code so it might not be suitable to sending a large
-  amount of data"*. Channels are ordered and fast — use `tauri::ipc::Channel<T>` for
+  amount of data"*. Channels are ordered and fast, use `tauri::ipc::Channel<T>` for
   update-download progress.
 
 At our payload sizes (a few hundred bytes of state) none of this is a bottleneck.

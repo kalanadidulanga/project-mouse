@@ -1,4 +1,4 @@
-# M0 memory sampler — THROWAWAY. Sums the spike-m0 process tree (main + WebView2
+# M0 memory sampler, THROWAWAY. Sums the spike-m0 process tree (main + WebView2
 # children) once a second to a CSV, because destroy() frees the child processes,
 # not the host. Authoritative record for T1-T4; Task Manager is the human cross-check.
 param(
