@@ -103,7 +103,7 @@ pub fn save_atomic(path: &Path, cfg: &Config) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::modes::WakeMode;
+    use crate::core::running::RunSettings;
     use std::sync::atomic::{AtomicU32, Ordering};
 
     static COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -119,10 +119,10 @@ mod tests {
     #[test]
     fn a_utf8_bom_does_not_make_a_config_corrupt() {
         let path = temp_path();
-        let json = r#"{"schema_version":2,"mode":"KeepRunning"}"#;
+        let json = r#"{"schema_version":3,"run":{"start_on_launch":true}}"#;
         std::fs::write(&path, format!("\u{FEFF}{json}")).unwrap();
         let cfg = load(&path).expect("a BOM is an encoding artefact, not corruption");
-        assert_eq!(cfg.mode, WakeMode::KeepRunning);
+        assert!(cfg.run.start_on_launch);
         let _ = std::fs::remove_file(&path);
     }
 
@@ -159,7 +159,13 @@ mod tests {
     #[test]
     fn round_trips() {
         let path = temp_path();
-        let cfg = Config::with_mode(WakeMode::KeepPresenting);
+        let cfg = Config {
+            run: RunSettings {
+                start_on_launch: true,
+                ..RunSettings::default()
+            },
+            ..Config::default()
+        };
         save_atomic(&path, &cfg).unwrap();
         let loaded = load(&path).unwrap();
         assert_eq!(loaded, cfg);
@@ -192,9 +198,24 @@ mod tests {
     #[test]
     fn save_replaces_existing_atomically() {
         let path = temp_path();
-        save_atomic(&path, &Config::with_mode(WakeMode::Off)).unwrap();
-        save_atomic(&path, &Config::with_mode(WakeMode::KeepRunning)).unwrap();
-        assert_eq!(load(&path).unwrap().mode, WakeMode::KeepRunning);
+        save_atomic(&path, &Config::default()).unwrap();
+        save_atomic(
+            &path,
+            &Config {
+                auto_update: false,
+                ..Config::default()
+            },
+        )
+        .unwrap();
+        assert!(!load(&path).unwrap().auto_update);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_json_array_is_corrupt_not_a_crash() {
+        let path = temp_path();
+        std::fs::write(&path, b"[]").unwrap();
+        assert!(matches!(load(&path), Err(ConfigError::Parse(_))));
         let _ = std::fs::remove_file(&path);
     }
 }

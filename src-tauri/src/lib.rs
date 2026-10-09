@@ -26,6 +26,7 @@ use crate::core::input_engine::{InputEngine, InputSettings};
 use crate::core::modes::WakeMode;
 use crate::core::profiles;
 use crate::core::rule::{Condition, Profile, Rule};
+use crate::core::running::{self, RunSettings};
 use crate::platform::PowerGuard;
 use crate::sampler::Sampler;
 
@@ -58,10 +59,12 @@ pub(crate) fn set_auto_update(app: &tauri::AppHandle, on: bool) {
     persist_current(app);
 }
 
-type SharedEngine = Arc<Mutex<Engine>>;
-type SharedInput = Arc<Mutex<InputEngine>>;
+pub(crate) type SharedEngine = Arc<Mutex<Engine>>;
+pub(crate) type SharedInput = Arc<Mutex<InputEngine>>;
 /// Every profile on disk. The engine holds one of them; this is the set (research R3).
-type SharedProfiles = Arc<Mutex<Vec<Profile>>>;
+pub(crate) type SharedProfiles = Arc<Mutex<Vec<Profile>>>;
+/// What Start means (spec 005).
+pub(crate) type SharedRun = Arc<Mutex<RunSettings>>;
 
 /// Latched at startup: no config file existed, so the UI opens on the first-run question
 /// (spec FR-008). Cleared by the answer, never re-read from disk.
@@ -197,16 +200,14 @@ pub(crate) fn set_manual(app: &tauri::AppHandle, mode: WakeMode) {
 /// Persist the whole current config — manual mode + the active profile's rules — atomically.
 /// Disabled when the on-disk config was corrupt, so we never overwrite a recoverable file.
 pub(crate) fn persist_current(app: &tauri::AppHandle) {
-    let engine = app.state::<SharedEngine>();
-    let (mode, profile) = {
-        let e = engine.lock().unwrap();
-        (e.manual(), e.profile().clone())
-    };
-    let input = app.state::<SharedInput>();
-    let (input_enabled, input_settings) = {
-        let ie = input.lock().unwrap();
-        (ie.enabled(), ie.settings())
-    };
+    let profile = app
+        .state::<SharedEngine>()
+        .lock()
+        .unwrap()
+        .profile()
+        .clone();
+    let input = app.state::<SharedInput>().lock().unwrap().settings();
+    let run = *app.state::<SharedRun>().lock().unwrap();
     let p = app.state::<Mutex<Persist>>();
     let p = p.lock().unwrap();
     if !p.enabled {
@@ -223,11 +224,10 @@ pub(crate) fn persist_current(app: &tauri::AppHandle) {
         None => vec![profile.clone()],
     };
     let cfg = Config {
-        mode,
         active_profile: profile.id.clone(),
         profiles: all,
-        input_enabled,
-        input: input_settings,
+        input,
+        run,
         auto_update: auto_update_enabled(),
         ..Config::default()
     };
@@ -434,38 +434,30 @@ pub fn run() {
     // preserved (FEATURES D8).
     let cfg_path = store::resolve_config_path();
     FIRST_RUN.store(!cfg_path.exists(), Ordering::SeqCst);
-    let (
-        initial_mode,
-        initial_profile,
-        initial_input,
-        initial_input_settings,
-        stored,
-        save_enabled,
-    ) = match store::load(&cfg_path) {
-        Ok(c) => (
-            c.mode,
-            c.active().cloned(),
-            c.input_enabled,
-            c.input,
-            c.profiles.clone(),
-            true,
-        ),
-        Err(e) => {
-            tracing::error!("config load failed ({e}); starting Off and preserving the file");
-            (
-                WakeMode::Off,
-                None,
-                false,
-                InputSettings::default(),
-                Vec::new(),
-                false,
-            )
-        }
-    };
+    let (initial_profile, initial_input, run_settings, stored, save_enabled) =
+        match store::load(&cfg_path) {
+            Ok(c) => (
+                c.active().cloned(),
+                c.input,
+                c.run,
+                c.profiles.clone(),
+                true,
+            ),
+            Err(e) => {
+                tracing::error!(
+                    "config load failed ({e}); starting stopped and preserving the file"
+                );
+                (
+                    None,
+                    InputSettings::default(),
+                    RunSettings::default(),
+                    Vec::new(),
+                    false,
+                )
+            }
+        };
 
     let mut engine = Engine::new(power);
-    // --keep on the command line overrides the persisted mode for this launch (D10).
-    engine.set_manual(cli_keep_mode().unwrap_or(initial_mode));
     if let Some(p) = initial_profile {
         engine.set_profile(p);
     }
@@ -473,16 +465,25 @@ pub fn run() {
         tracing::info!("CLI --while-process overrides the active profile for this session");
         engine.set_profile(profile);
     }
+    let mut input_engine = InputEngine::new(platform.input.clone(), platform::tick_now());
+    input_engine.set_settings(initial_input);
+
+    // Spec 005 FR-014: the running state is not saved. `--keep` picks a mode for this launch;
+    // otherwise Start on launch decides.
+    let initial_mode = match cli_keep_mode() {
+        Some(m) => m,
+        None if run_settings.start_on_launch => run_settings.start_mode(),
+        None => WakeMode::Off,
+    };
+    running::apply(&mut engine, &mut input_engine, &run_settings, initial_mode);
+
     let engine: SharedEngine = Arc::new(Mutex::new(engine));
     // The engine always holds a profile, so the collection is never empty.
     let mut stored = stored;
     profiles::upsert(&mut stored, engine.lock().unwrap().profile().clone());
     let stored_profiles: SharedProfiles = Arc::new(Mutex::new(stored));
-
-    let mut input_engine = InputEngine::new(platform.input.clone(), platform::tick_now());
-    input_engine.set_enabled(initial_input);
-    input_engine.set_settings(initial_input_settings);
     let input_engine: SharedInput = Arc::new(Mutex::new(input_engine));
+    let run_state: SharedRun = Arc::new(Mutex::new(run_settings));
 
     let sampler = Arc::new(Sampler::new(
         platform.processes.clone(),
@@ -523,6 +524,7 @@ pub fn run() {
         .manage(engine.clone())
         .manage(input_engine.clone())
         .manage(stored_profiles.clone())
+        .manage(run_state.clone())
         .manage(sampler.clone())
         .manage(inspector)
         .manage(Mutex::new(Persist {
