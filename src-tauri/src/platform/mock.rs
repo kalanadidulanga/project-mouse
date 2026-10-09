@@ -8,8 +8,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use super::{
-    ForegroundMonitor, InputInjector, PlatformError, PowerGuard, PowerInspector, PowerSource,
-    ProcessMonitor, Result, SessionMonitor,
+    ForegroundMonitor, InputInjector, PathOutcome, PlatformError, PowerGuard, PowerInspector,
+    PowerSource, ProcessMonitor, Result, SessionMonitor,
 };
 use crate::core::rule::NotifState;
 
@@ -104,8 +104,16 @@ impl InputInjector for NoopInjector {
     fn key(&self, _vk: u16) -> Result<()> {
         Ok(())
     }
-    fn move_path(&self, _steps: &[(i32, i32)], _step_ms: u32) -> Result<u32> {
-        Ok(0)
+    fn move_path(
+        &self,
+        _steps: &[(i32, i32)],
+        _step_ms: u32,
+        _abortable: bool,
+    ) -> Result<PathOutcome> {
+        Ok(PathOutcome {
+            elapsed_ms: 0,
+            aborted: false,
+        })
     }
 }
 
@@ -117,6 +125,12 @@ pub struct MockInjector {
     pub moves: Arc<Mutex<Vec<(i32, i32)>>>,
     /// Make every call fail, as `SendInput` does on a desktop it cannot reach.
     pub fail: Arc<AtomicBool>,
+    /// Pretend the user grabs the mouse after this many steps.
+    pub user_moves_after: Arc<Mutex<Option<usize>>>,
+    /// The step gap the last path asked for.
+    pub last_step_ms: Arc<Mutex<Option<u32>>>,
+    /// Whether the last path was abortable.
+    pub last_abortable: Arc<Mutex<Option<bool>>>,
 }
 impl MockInjector {
     /// Net displacement of every move so far. Should be (0, 0) after any whole path.
@@ -142,10 +156,29 @@ impl InputInjector for MockInjector {
     fn key(&self, _vk: u16) -> Result<()> {
         self.call()
     }
-    fn move_path(&self, steps: &[(i32, i32)], step_ms: u32) -> Result<u32> {
+    fn move_path(
+        &self,
+        steps: &[(i32, i32)],
+        step_ms: u32,
+        abortable: bool,
+    ) -> Result<PathOutcome> {
         self.call()?;
-        self.moves.lock().unwrap().extend_from_slice(steps);
-        Ok(steps.len() as u32 * step_ms)
+        *self.last_step_ms.lock().unwrap() = Some(step_ms);
+        *self.last_abortable.lock().unwrap() = Some(abortable);
+        let grab = *self.user_moves_after.lock().unwrap();
+        for (i, s) in steps.iter().enumerate() {
+            if abortable && grab.is_some_and(|k| i > k) {
+                return Ok(PathOutcome {
+                    elapsed_ms: i as u32 * step_ms,
+                    aborted: true,
+                });
+            }
+            self.moves.lock().unwrap().push(*s);
+        }
+        Ok(PathOutcome {
+            elapsed_ms: steps.len() as u32 * step_ms,
+            aborted: false,
+        })
     }
 }
 

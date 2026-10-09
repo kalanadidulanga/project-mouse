@@ -64,6 +64,15 @@ pub trait PowerSource: Send + Sync {
     fn power_status(&self) -> (bool, u8);
 }
 
+/// How a path ended (spec 006 FR-005).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PathOutcome {
+    /// How long it took. The engine treats that whole span as its own input.
+    pub elapsed_ms: u32,
+    /// The user took the mouse mid-path, and the rest of the path was skipped.
+    pub aborted: bool,
+}
+
 /// Synthetic input (the opt-in engine, FEATURES Part C). A non-error return does NOT mean the input
 /// landed, UIPI can discard it silently (gotcha 3); verify via the idle clock (C7).
 pub trait InputInjector: Send + Sync {
@@ -71,9 +80,10 @@ pub trait InputInjector: Send + Sync {
     fn virtual_jiggle(&self) -> Result<()>;
     /// Press and release a virtual key (default `VK_F15`), down+up in one call (C3, gotcha 8).
     fn key(&self, vk: u16) -> Result<()>;
-    /// Trace a whole path of relative moves `step_ms` apart, and return how long it took in ms.
-    /// The engine treats that whole span as its own input (spec 005 FR-006).
-    fn move_path(&self, steps: &[(i32, i32)], step_ms: u32) -> Result<u32>;
+    /// Trace a closed path, `step_ms` apart (spec 006 FR-004). With `abortable`, stop at once if
+    /// the cursor is not where the previous step put it, because the user has taken the mouse.
+    fn move_path(&self, steps: &[(i32, i32)], step_ms: u32, abortable: bool)
+        -> Result<PathOutcome>;
 }
 
 // ponytail: autostart is handled by the cross-platform `tauri-plugin-autostart` (HKCU\Run on
