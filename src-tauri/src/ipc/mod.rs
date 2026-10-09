@@ -7,6 +7,7 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 use tauri_plugin_autostart::ManagerExt;
 
+use crate::config::model::Appearance;
 use crate::core::autopilot::{self, PauseReason, RunFor, Timetable};
 use crate::core::awake::{self, AwakeReport};
 use crate::core::engine::Engine;
@@ -24,6 +25,7 @@ type SharedInput = Arc<Mutex<InputEngine>>;
 type SharedProfiles = Arc<Mutex<Vec<Profile>>>;
 type SharedRun = Arc<Mutex<RunSettings>>;
 type SharedTimetable = Arc<Mutex<Timetable>>;
+type SharedAppearance = Arc<Mutex<Appearance>>;
 type SharedAutopilot = Arc<Mutex<crate::core::autopilot::Autopilot>>;
 type SharedInspector = Arc<dyn PowerInspector>;
 
@@ -149,6 +151,16 @@ pub fn start(app: AppHandle, run_for: Option<RunFor>) {
 #[tauri::command]
 pub fn set_run_for(app: AppHandle, run_for: RunFor) {
     crate::set_run_for(&app, run_for);
+}
+
+#[tauri::command]
+pub fn get_appearance(appearance: State<'_, SharedAppearance>) -> Appearance {
+    *appearance.lock().unwrap()
+}
+
+#[tauri::command]
+pub fn set_appearance(app: AppHandle, appearance: Appearance) {
+    crate::set_appearance(&app, appearance);
 }
 
 #[tauri::command]

@@ -2,6 +2,7 @@
 //! ticks ~1 s: it samples state, evaluates the active profile, reconciles power and runs the input
 //! engine.
 
+mod appearance;
 mod config;
 mod core;
 mod ipc;
@@ -190,6 +191,8 @@ fn open_window(app: &tauri::AppHandle) {
         Some(cfg) => match tauri::WebviewWindowBuilder::from_config(app, &cfg) {
             Ok(b) => {
                 let _ = b.build();
+                let (running, paused) = window_state(app);
+                appearance::sync_window(app, running, paused);
             }
             Err(e) => tracing::error!("window build error: {e}"),
         },
@@ -290,9 +293,32 @@ pub(crate) fn set_autostart(app: &tauri::AppHandle, on: bool) -> Result<bool, St
     Ok(mgr.is_enabled().unwrap_or(on))
 }
 
+/// Whether it is running and, if so, paused: what the taskbar dot shows.
+fn window_state(app: &tauri::AppHandle) -> (bool, bool) {
+    let running = is_running(app);
+    if !running {
+        return (false, false);
+    }
+    let settings = *app.state::<SharedRun>().lock().unwrap();
+    let snap = app.state::<Arc<Sampler>>().last();
+    let tt = app.state::<SharedTimetable>();
+    let paused = autopilot::pause_reason(&settings, &tt.lock().unwrap().blackouts, &snap).is_some();
+    (true, paused)
+}
+
+/// New appearance settings take effect at once and are saved.
+pub(crate) fn set_appearance(app: &tauri::AppHandle, a: Appearance) {
+    *app.state::<SharedAppearance>().lock().unwrap() = a;
+    let (running, paused) = window_state(app);
+    appearance::sync_window(app, running, paused);
+    persist_current(app);
+}
+
 /// Tell the tray and an open window that the state changed.
 fn after_change(app: &tauri::AppHandle) {
     tray::sync(app);
+    let (running, paused) = window_state(app);
+    appearance::sync_window(app, running, paused);
     if app.get_webview_window("main").is_some() {
         let _ = app.emit("state:changed", ());
     }
@@ -553,6 +579,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .manage(engine.clone())
         .manage(input_engine.clone())
         .manage(stored_profiles.clone())
@@ -572,6 +599,8 @@ pub fn run() {
             ipc::stop,
             ipc::set_run_for,
             ipc::get_timetable,
+            ipc::get_appearance,
+            ipc::set_appearance,
             ipc::set_timetable,
             ipc::test_move,
             ipc::get_run_settings,
@@ -626,6 +655,7 @@ pub fn run() {
                 icons.off.clone()
             };
             app.manage(icons);
+            app.manage(appearance::Dots::new());
             let _tray = TrayIconBuilder::with_id("main")
                 .icon(first)
                 .tooltip("project-mouse")
@@ -671,6 +701,7 @@ pub fn run() {
             std::thread::spawn(move || {
                 let mut last_tip = String::new();
                 let mut last_pause = None;
+                let mut blocked_told = false;
                 platform::run_tick_loop(1000, 200, move || {
                     if SHUTDOWN.load(Ordering::SeqCst) {
                         return false;
@@ -692,6 +723,9 @@ pub fn run() {
                         }
                         None => {}
                     }
+                    if let Some(cmd) = decision.command {
+                        appearance::notify(&sched_app, appearance::command_text(cmd));
+                    }
                     last_pause = decision.pause;
                     // Phase 1: reconcile the power engine against desired state.
                     let (on, effective, remaining) = {
@@ -709,6 +743,16 @@ pub fn run() {
                         ie.tick(platform::last_input_tick(), platform::tick_now());
                         (ie.enabled() && ie.blocked, ie.next_move_in_secs())
                     };
+                    if blocked && !blocked_told {
+                        appearance::notify(
+                            &sched_app,
+                            "Windows blocked a mouse move. An app running as administrator is in front; click another window.",
+                        );
+                        blocked_told = true;
+                    }
+                    if !on {
+                        blocked_told = false;
+                    }
                     let move_mouse = sched_run.lock().unwrap().move_mouse;
                     let pause = if on { decision.pause } else { None };
                     let kind =
