@@ -8,43 +8,76 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::core::idle::{self, IdleTracker};
-use crate::core::motion::{self, Motion};
+use crate::core::motion::{self, Motion, Speed};
 use crate::platform::InputInjector;
 
-/// The user-settable input-engine knobs. Clamped in `InputEngine::set_settings`.
+/// The user-settable input-engine knobs (spec 006 Movement tab). Clamped in
+/// `InputEngine::set_settings`. Settings saved before M8 still load: missing fields take their
+/// defaults, and the old `vary_pct` is ignored.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InputSettings {
-    /// Move once the PC has had no input for this many seconds.
+    /// Move once the PC has had no input for this many seconds (the low end when random).
     pub interval_secs: u32,
+    /// Draw the wait afresh each cycle between `interval_secs` and `interval_max_secs` (FR-006).
+    #[serde(default)]
+    pub interval_random: bool,
+    #[serde(default = "default_interval_max")]
+    pub interval_max_secs: u32,
     /// 0 = move the mouse; otherwise press this virtual-key code instead.
     pub key: u16,
-    /// What the cursor does (C2). `Virtual` moves nothing visible.
+    /// What the cursor does (FR-001). `Virtual` moves nothing visible.
     #[serde(default)]
     pub motion: Motion,
-    /// Pixels per leg of a visible motion. Ignored by `Motion::Virtual`.
+    /// Pixels per leg (the low end when random). Ignored by `Motion::Virtual`.
     #[serde(default = "default_distance")]
     pub distance_px: u16,
-    /// Vary the interval and distance by up to this percent (C5). Purpose: a fixed interval
-    /// synchronises badly with other periodic events, and a cursor that always lands on the same
-    /// pixel eventually lands somewhere it should not. Nothing to do with looking human.
+    /// Draw the distance afresh each move between `distance_px` and `distance_max_px` (FR-003).
     #[serde(default)]
-    pub vary_pct: u8,
+    pub distance_random: bool,
+    #[serde(default = "default_distance_max")]
+    pub distance_max_px: u16,
+    #[serde(default)]
+    pub speed: Speed,
+    /// Milliseconds between steps when `speed` is `Custom`.
+    #[serde(default = "default_custom_step")]
+    pub custom_step_ms: u8,
+    /// Let go at once if the user touches the mouse mid-path (FR-005).
+    #[serde(default = "default_true")]
+    pub abortable: bool,
 }
 
+fn default_interval_max() -> u32 {
+    120
+}
 fn default_distance() -> u16 {
     10
 }
+fn default_distance_max() -> u16 {
+    20
+}
+fn default_custom_step() -> u8 {
+    10
+}
+fn default_true() -> bool {
+    true
+}
 
 impl Default for InputSettings {
-    /// A visible 10 px square after a minute with no input: what someone arriving from Move
-    /// Mouse expects to see (spec 005; FEATURES Part C, amended).
+    /// A visible 10 px square after a minute with no input, letting go if touched: what someone
+    /// arriving from Move Mouse expects to see.
     fn default() -> Self {
         Self {
             interval_secs: 60,
+            interval_random: false,
+            interval_max_secs: default_interval_max(),
             key: 0,
             motion: Motion::Square,
             distance_px: default_distance(),
-            vary_pct: 0,
+            distance_random: false,
+            distance_max_px: default_distance_max(),
+            speed: Speed::Normal,
+            custom_step_ms: default_custom_step(),
+            abortable: true,
         }
     }
 }
@@ -56,12 +89,9 @@ pub struct InputEngine {
     pub blocked: bool,
     pub system_idle_ms: u32,
     pub human_idle_ms: u32,
-    interval_ms: u32,
-    key: u16,
-    motion: Motion,
-    distance_px: u16,
-    vary_pct: u8,
-    /// This cycle's interval: `interval_ms` varied once, when the cycle starts, so the countdown
+    /// The settings, already clamped.
+    s: InputSettings,
+    /// This cycle's interval: the interval drawn once, when the cycle starts, so the countdown
     /// counts down instead of jumping about from tick to tick.
     cycle_ms: u32,
     /// When the last move ended. Set on a failed attempt too, so nothing retries every second.
@@ -80,11 +110,7 @@ impl InputEngine {
             blocked: false,
             system_idle_ms: 0,
             human_idle_ms: 0,
-            interval_ms: 0,
-            key: 0,
-            motion: Motion::Virtual,
-            distance_px: 0,
-            vary_pct: 0,
+            s: InputSettings::default(),
             cycle_ms: 0,
             last_move: None,
             pending_verify: None,
@@ -108,26 +134,50 @@ impl InputEngine {
         self.enabled
     }
 
-    /// Clamped here so a bad config or a typo cannot produce a runaway injector: interval
-    /// 5 s–1 h, distance 1–500 px, variation at most 50 %.
+    /// Clamped so a bad config or a typo cannot produce a runaway injector: interval 5 s-1 h,
+    /// distance 1-500 px, custom speed 1-50 ms per step. A swapped min and max is fine: the draw
+    /// orders them.
     pub fn set_settings(&mut self, s: InputSettings) {
-        self.interval_ms = s.interval_secs.clamp(5, 3_600) * 1000;
-        self.key = s.key;
-        self.motion = s.motion;
-        // A visible move is capped: this resets an idle timer, it does not fling the pointer.
-        self.distance_px = s.distance_px.clamp(1, 500);
-        self.vary_pct = s.vary_pct.min(50);
-        self.cycle_ms = self.interval_ms;
+        self.s = InputSettings {
+            interval_secs: s.interval_secs.clamp(5, 3_600),
+            interval_max_secs: s.interval_max_secs.clamp(5, 3_600),
+            distance_px: s.distance_px.clamp(1, 500),
+            distance_max_px: s.distance_max_px.clamp(1, 500),
+            custom_step_ms: s.custom_step_ms.clamp(1, 50),
+            ..s
+        };
+        self.cycle_ms = self.s.interval_secs * 1000;
     }
 
     pub fn settings(&self) -> InputSettings {
-        InputSettings {
-            interval_secs: self.interval_ms / 1000,
-            key: self.key,
-            motion: self.motion,
-            distance_px: self.distance_px,
-            vary_pct: self.vary_pct,
-        }
+        self.s
+    }
+
+    /// This cycle's wait: fixed, or drawn between the two ends (FR-006).
+    fn draw_interval_ms(&self, seed: u32) -> u32 {
+        let (a, b) = (self.s.interval_secs, self.s.interval_max_secs);
+        let secs = if self.s.interval_random {
+            motion::pick(a.min(b), a.max(b), seed)
+        } else {
+            a
+        };
+        secs * 1000
+    }
+
+    /// This move's distance: fixed, or drawn between the two ends (FR-003).
+    fn draw_distance(&self, seed: u32) -> i32 {
+        let (a, b) = (self.s.distance_px as u32, self.s.distance_max_px as u32);
+        let d = if self.s.distance_random {
+            motion::pick(a.min(b), a.max(b), seed)
+        } else {
+            a
+        };
+        d as i32
+    }
+
+    #[cfg(test)]
+    fn cycle_ms(&self) -> u32 {
+        self.cycle_ms
     }
 
     /// Seconds until the next move, rounded up. `None` while disabled.
@@ -138,20 +188,22 @@ impl InputEngine {
     /// What actually gets synthesized: a key if one is set, else the motion. Returns how long it
     /// took, so the whole span can be recognised as ours.
     fn dispatch(&self, now: u32) -> crate::platform::Result<u32> {
-        if self.key != 0 {
-            return self.injector.key(self.key).map(|()| 0);
+        if self.s.key != 0 {
+            return self.injector.key(self.s.key).map(|()| 0);
         }
-        if self.motion == Motion::Virtual {
+        if self.s.motion == Motion::Virtual {
             return self.injector.virtual_jiggle().map(|()| 0);
         }
-        let distance = motion::vary(self.distance_px as u32, self.vary_pct as u32, now) as i32;
-        self.injector
-            .move_path(
-                &motion::path(self.motion, distance, now.rotate_left(16)),
-                motion::Speed::Normal.step_ms(0),
-                false,
-            )
-            .map(|o| o.elapsed_ms)
+        let steps = motion::path(self.s.motion, self.draw_distance(now), now.rotate_left(16));
+        let outcome = self.injector.move_path(
+            &steps,
+            self.s.speed.step_ms(self.s.custom_step_ms),
+            self.s.abortable,
+        )?;
+        if outcome.aborted {
+            tracing::info!("move aborted: the user took the mouse");
+        }
+        Ok(outcome.elapsed_ms)
     }
 
     /// One move, right now: the scheduled one, or Test (spec 005 FR-007).
@@ -169,8 +221,8 @@ impl InputEngine {
                 tracing::warn!("injection failed: {e}");
             }
         }
-        // C5: vary once per cycle, so the countdown is steady. Seeded from the tick, no RNG state.
-        self.cycle_ms = motion::vary(self.interval_ms, self.vary_pct as u32, now);
+        // Drawn once per cycle, so the countdown is steady. Seeded from the tick, no RNG state.
+        self.cycle_ms = self.draw_interval_ms(now ^ 0x5BD1_E995);
     }
 
     /// One tick. `last_input_tick` = `GetLastInputInfo.dwTime`, `now` = `GetTickCount` (same domain).
@@ -206,6 +258,7 @@ impl InputEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::motion::Speed;
     use crate::platform::mock::MockInjector;
     use std::sync::atomic::Ordering;
 
@@ -226,11 +279,20 @@ mod tests {
     }
 
     #[test]
-    fn defaults_are_a_visible_square_after_a_minute() {
+    fn defaults_are_a_visible_square_after_a_minute_that_lets_go_when_touched() {
         let d = InputSettings::default();
         assert_eq!(
-            (d.interval_secs, d.key, d.motion, d.distance_px, d.vary_pct),
-            (60, 0, Motion::Square, 10, 0)
+            (d.interval_secs, d.interval_random, d.interval_max_secs),
+            (60, false, 120)
+        );
+        assert_eq!((d.key, d.motion), (0, Motion::Square));
+        assert_eq!(
+            (d.distance_px, d.distance_random, d.distance_max_px),
+            (10, false, 20)
+        );
+        assert_eq!(
+            (d.speed, d.custom_step_ms, d.abortable),
+            (Speed::Normal, 10, true)
         );
     }
 
@@ -364,21 +426,134 @@ mod tests {
     }
 
     #[test]
-    fn variation_is_drawn_once_per_cycle_so_the_countdown_is_steady() {
+    fn a_random_interval_is_drawn_once_per_cycle_so_the_countdown_is_steady() {
         let m = MockInjector::default();
         let mut e = engine(&m);
         e.set_settings(InputSettings {
-            vary_pct: 50,
-            ..every(60, Motion::Virtual)
+            interval_random: true,
+            interval_max_secs: 90,
+            ..every(30, Motion::Virtual)
         });
         e.set_enabled(true);
-        e.tick(0, 60_000); // the first cycle is exactly the interval
+        e.tick(0, 30_000); // the first cycle is exactly the low end
         assert_eq!(calls(&m), 1);
-        e.tick(60_000, 61_000);
+        e.tick(30_000, 31_000);
         let a = e.next_move_in_secs().unwrap();
-        e.tick(60_000, 62_000);
+        e.tick(30_000, 32_000);
         let b = e.next_move_in_secs().unwrap();
         assert_eq!(a - b, 1, "the countdown jumped: {a} then {b}");
+    }
+
+    #[test]
+    fn a_random_interval_stays_in_range_and_varies() {
+        let m = MockInjector::default();
+        let mut e = engine(&m);
+        e.set_settings(InputSettings {
+            interval_random: true,
+            interval_max_secs: 120,
+            ..every(60, Motion::Virtual)
+        });
+        let cycles: std::collections::HashSet<u32> = (0..40u32)
+            .map(|i| {
+                e.move_now(i.wrapping_mul(7_919));
+                e.cycle_ms()
+            })
+            .collect();
+        assert!(
+            cycles.iter().all(|c| (60_000..=120_000).contains(c)),
+            "{cycles:?}"
+        );
+        assert!(cycles.len() > 3, "only {} distinct waits", cycles.len());
+    }
+
+    #[test]
+    fn a_fixed_interval_ignores_the_max_and_a_swapped_range_still_works() {
+        let m = MockInjector::default();
+        let mut e = engine(&m);
+        e.set_settings(InputSettings {
+            interval_max_secs: 9,
+            ..every(60, Motion::Virtual)
+        });
+        e.move_now(5);
+        assert_eq!(e.cycle_ms(), 60_000);
+        e.set_settings(InputSettings {
+            interval_random: true,
+            interval_max_secs: 30,
+            ..every(90, Motion::Virtual)
+        });
+        for i in 0..20u32 {
+            e.move_now(i * 31);
+            assert!((30_000..=90_000).contains(&e.cycle_ms()));
+        }
+    }
+
+    #[test]
+    fn a_random_distance_stays_in_range() {
+        for seed in 0..30u32 {
+            let m = MockInjector::default();
+            let mut e = engine(&m);
+            e.set_settings(InputSettings {
+                distance_random: true,
+                distance_px: 10,
+                distance_max_px: 20,
+                ..every(5, Motion::Square)
+            });
+            e.move_now(seed.wrapping_mul(104_729));
+            // A square's only rightward leg is its first, so the rightward total is the distance.
+            let d: i32 = m
+                .moves
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|s| s.0 > 0)
+                .map(|s| s.0)
+                .sum();
+            assert!((10..=20).contains(&d), "seed {seed}: {d}px");
+        }
+    }
+
+    #[test]
+    fn speed_and_abort_reach_the_injector() {
+        let m = MockInjector::default();
+        let mut e = engine(&m);
+        e.set_settings(InputSettings {
+            speed: Speed::Slow,
+            abortable: false,
+            ..every(5, Motion::Square)
+        });
+        e.move_now(1);
+        assert_eq!(*m.last_step_ms.lock().unwrap(), Some(20));
+        assert_eq!(*m.last_abortable.lock().unwrap(), Some(false));
+        e.set_settings(InputSettings {
+            speed: Speed::Custom,
+            custom_step_ms: 0,
+            ..every(5, Motion::Square)
+        });
+        e.move_now(2);
+        assert_eq!(
+            *m.last_step_ms.lock().unwrap(),
+            Some(1),
+            "custom is held to 1..=50"
+        );
+    }
+
+    /// Spec 006 edge case: an aborted path still counts as a move, so the countdown restarts.
+    #[test]
+    fn an_aborted_path_still_counts_as_a_move() {
+        let m = MockInjector::default();
+        *m.user_moves_after.lock().unwrap() = Some(2);
+        let mut e = engine(&m);
+        e.set_settings(every(5, Motion::Square));
+        e.set_enabled(true);
+        e.tick(0, 5_000);
+        assert_eq!(calls(&m), 1);
+        assert_eq!(
+            m.moves.lock().unwrap().len(),
+            3,
+            "it stopped after the user grabbed the mouse"
+        );
+        e.tick(5_030, 6_000);
+        assert_eq!(e.next_move_in_secs(), Some(5));
     }
 
     #[test]
@@ -387,23 +562,33 @@ mod tests {
         let mut e = engine(&m);
         e.set_settings(InputSettings {
             interval_secs: 1,
+            interval_random: true,
+            interval_max_secs: 99_999,
             key: 0x7E,
             motion: Motion::Circle,
-            distance_px: 9_999,
-            vary_pct: 90,
+            distance_px: 0,
+            distance_random: true,
+            distance_max_px: 9_999,
+            speed: Speed::Custom,
+            custom_step_ms: 0,
+            abortable: false,
         });
         assert_eq!(
             e.settings(),
             InputSettings {
                 interval_secs: 5,
+                interval_random: true,
+                interval_max_secs: 3_600,
                 key: 0x7E,
                 motion: Motion::Circle,
-                distance_px: 500,
-                vary_pct: 50
+                distance_px: 1,
+                distance_random: true,
+                distance_max_px: 500,
+                speed: Speed::Custom,
+                custom_step_ms: 1,
+                abortable: false,
             }
         );
-        e.set_settings(every(u32::MAX, Motion::Square));
-        assert_eq!(e.settings().interval_secs, 3_600);
     }
 
     #[test]

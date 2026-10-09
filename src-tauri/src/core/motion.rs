@@ -172,27 +172,11 @@ fn xorshift(seed: u32) -> u32 {
 }
 
 /// A value in `[lo, hi]`, drawn from `seed` (spec 006 FR-003, FR-006). `lo >= hi` returns `lo`.
-#[allow(dead_code)]
 pub fn pick(lo: u32, hi: u32, seed: u32) -> u32 {
     if hi <= lo {
         return lo;
     }
     lo + xorshift(seed) % (hi - lo + 1)
-}
-
-/// Vary `value` by up to ±`pct` percent (C5). `pct` 0 leaves it alone.
-///
-/// Its purpose is that a fixed interval synchronises badly with other periodic events, and a
-/// cursor that always lands on the same pixel eventually lands somewhere it should not.
-pub fn vary(value: u32, pct: u32, seed: u32) -> u32 {
-    if pct == 0 || value == 0 {
-        return value;
-    }
-    let pct = pct.min(100);
-    let span = (value as u64 * pct as u64 / 100).max(1);
-    let offset = (xorshift(seed) as u64) % (span * 2 + 1);
-    let varied = value as i64 + offset as i64 - span as i64;
-    varied.max(1) as u32
 }
 
 #[cfg(test)]
@@ -325,39 +309,5 @@ mod tests {
         assert!(v.len() > 5, "only {} values", v.len());
         assert_eq!(pick(30, 30, 9), 30);
         assert_eq!(pick(40, 30, 9), 40, "lo >= hi returns lo");
-    }
-
-    // (keep the four existing `variation_*` tests here, unchanged, until Task 3)
-    #[test]
-    fn variation_of_zero_percent_is_the_identity() {
-        for seed in [0, 1, 7, 999_999] {
-            assert_eq!(vary(60, 0, seed), 60);
-        }
-    }
-
-    #[test]
-    fn variation_stays_within_the_requested_band() {
-        // ±25% of 60 is [45, 75].
-        for seed in 0..500 {
-            let v = vary(60, 25, seed);
-            assert!(
-                (45..=75).contains(&v),
-                "seed {seed} produced {v}, outside +/-25%"
-            );
-        }
-    }
-
-    #[test]
-    fn variation_actually_varies() {
-        let values: std::collections::HashSet<u32> = (0..50).map(|s| vary(60, 25, s)).collect();
-        assert!(values.len() > 5, "only {} distinct values", values.len());
-    }
-
-    /// An interval of zero would be a busy loop, so the floor is load-bearing, not cosmetic.
-    #[test]
-    fn variation_never_returns_zero() {
-        for seed in 0..500 {
-            assert!(vary(1, 100, seed) >= 1);
-        }
     }
 }

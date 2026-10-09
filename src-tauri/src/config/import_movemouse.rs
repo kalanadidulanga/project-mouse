@@ -221,10 +221,9 @@ pub fn import(xml: &str) -> Result<Imported, String> {
         }
         InputSettings {
             interval_secs,
-            key: 0,
             motion,
             distance_px,
-            vary_pct: 0,
+            ..InputSettings::default()
         }
     });
     if input.is_none() {
@@ -336,10 +335,9 @@ mod tests {
             r.input,
             Some(InputSettings {
                 interval_secs: 200,
-                key: 0,
                 motion: Motion::Square,
                 distance_px: 10,
-                vary_pct: 0
+                ..InputSettings::default()
             })
         );
         assert!(
