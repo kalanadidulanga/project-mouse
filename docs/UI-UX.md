@@ -84,6 +84,21 @@ panels, unchanged.
 **§8 first run is retired.** Its three answers were all power-only, and the launch bug meant
 no user ever saw it. The Home screen explains itself.
 
+**M8 additions (2026-10-09, `specs/006-move-mouse-parity/spec.md`):**
+
+- **Home** adds:
+  - **Run for** (until I stop / 30 min / 1 h / 2 h / 4 h / until a time)
+  - **Every / Randomly** for the interval
+  - the grouped **Direction** list
+  - *Idle for m:ss*
+- **The status line** gains *Paused: on battery / screen locked / blackout until 13:30* and
+  *Stops at 18:00*.
+- **Settings** sections: Movement (distance, speed, abort) · Pauses · Schedules · Blackouts ·
+  Window and notifications · Starting · Updates · About.
+- **The taskbar button** carries a green (running) or yellow (paused) dot while the window is
+  open. It is a static overlay, not an animation, so §4 holds.
+- **Advanced** loses the timer, because Run for replaces it.
+
 **Unchanged:** §4 motion budget, §5 visual language (plain Windows, system light/dark, no
 mascot, no custom title bar) and §7 accessibility.
 

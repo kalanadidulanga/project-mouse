@@ -260,6 +260,18 @@ No apology, no warning triangle theatre, one honest paragraph, once.
 > which is visible. The owner needs to *see* that it works, and their Move Mouse configuration
 > was a visible 10 px square. Virtual (C1) stays available as **Invisible**.
 
+> **M8 (2026-10-09, `specs/006-move-mouse-parity/spec.md`):** Move Mouse parity for the one
+> movement Start makes:
+> - 16 directions, every one a closed path: shapes, back and forth, eight compass directions
+>   out and back, Random and Invisible
+> - fixed or random distance and interval (min to max), which replace C5's *vary by %*
+> - Slow, Normal, Fast or Custom speed
+> - **Abort if I move**, which stops a path the instant the user touches the mouse
+>
+> Automatic pauses (battery, screen locked, blackouts), schedules and *Run for* decide when
+> Start runs. Randomness is described as keeping moves from lining up with other timers,
+> never as looking human (PRODUCT §5).
+
 ## C1. Virtual jiggle (default when input is enabled)
 
 > Amended 2026-10-09: no longer the default. Offered as **Invisible**; see the Part C note above.
@@ -466,6 +478,10 @@ problem in a file users attach to bug reports.
 Native toast on error and on state changes that would otherwise be invisible, auto-pause,
 lock released, blocked-injection detected. **Errors only by default.** A background utility
 that notifies on every action is one the user uninstalls.
+
+> **Amended 2026-10-09 (M8):** on by default, but only for things the user did not do by hand:
+> a scheduled Start or Stop, a *Run for* deadline, and the first blocked move of a run. A
+> manual Start, Stop or setting change never notifies. One switch turns them all off.
 
 ## D8. Config
 

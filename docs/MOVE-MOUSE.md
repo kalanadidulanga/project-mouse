@@ -37,6 +37,19 @@ cannot be fixed inside that architecture.
 
 ## 2. Actions
 
+> **M8 (2026-10-09):** project-mouse has one movement, not an action list. It matches Move
+> Mouse Cursor's options:
+> - the full Direction list
+> - Random distance
+> - Speed, including Custom
+> - Abortable
+> - Stealth, as Invisible
+>
+> It also has Behaviour's random interval, the locked and battery pauses, Schedules and
+> Blackouts. Not built: Trigger and Repeat (they exist to sequence a multi-action list), the
+> other action types (§2.2 to §2.9), cron Advanced Schedules, and the appearance options listed
+> under §5. See `specs/006-move-mouse-parity/spec.md` FR-023.
+
 Nine action types. Each has a **Test** button, can be reordered, copied, and individually
 disabled. The last action cannot be removed.
 
