@@ -9,6 +9,7 @@ import { SettingRow, Switch } from "./controls";
 export default function Behaviour() {
   const [run, setRun] = useState<RunSettings | null>(null);
   const [autostart, setAutostart] = useState(false);
+  const [hotkey, setHotkey] = useState(true);
   const [autostartErr, setAutostartErr] = useState<string | null>(null);
   const [apps, setApps] = useState<string[]>([]);
   const [running, setRunning] = useState<string[]>([]);
@@ -22,6 +23,7 @@ export default function Behaviour() {
     invoke<RunSettings>("get_run_settings").then(setRun).catch(() => {});
     invoke<string[]>("get_apps").then(setApps).catch(() => {});
     invoke<string[]>("list_running_apps").then(setRunning).catch(() => {});
+    invoke<boolean>("hotkey_ok").then(setHotkey).catch(() => {});
     readAutostart();
     // The tray can flip Start with Windows too; stay in step with it.
     const un = listen("state:changed", readAutostart);
@@ -129,7 +131,11 @@ export default function Behaviour() {
           <Switch label="Start project-mouse with Windows" on={autostart} onChange={toggleAutostart} />
         </SettingRow>
         {autostartErr && <p className="note error">{autostartErr}</p>}
-        <p className="note">Ctrl+Alt+K starts and stops it from anywhere.</p>
+        <p className="note">
+          {hotkey
+            ? "Ctrl+Alt+K starts and stops it from anywhere."
+            : "Ctrl+Alt+K is off: another app was already using it when project-mouse started."}
+        </p>
       </section>
 
     </>

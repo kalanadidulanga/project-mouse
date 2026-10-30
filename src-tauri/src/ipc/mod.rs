@@ -98,6 +98,12 @@ pub struct Status {
     pub holding_app: Option<String>,
 }
 
+/// Whether Ctrl+Alt+K was registered at launch.
+#[tauri::command]
+pub fn hotkey_ok() -> bool {
+    crate::HOTKEY_OK.load(std::sync::atomic::Ordering::SeqCst)
+}
+
 #[tauri::command]
 pub fn get_status(
     engine: State<'_, SharedEngine>,

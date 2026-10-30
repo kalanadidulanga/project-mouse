@@ -49,6 +49,8 @@ static UPDATE_AVAILABLE: Mutex<Option<String>> = Mutex::new(None);
 
 /// Whether background checks run. Mirrors `Config::auto_update`.
 static AUTO_UPDATE: AtomicBool = AtomicBool::new(true);
+/// Whether Ctrl+Alt+K is ours. Another app can hold it, and then Behaviour says so.
+pub(crate) static HOTKEY_OK: AtomicBool = AtomicBool::new(false);
 
 pub(crate) fn update_available() -> Option<String> {
     UPDATE_AVAILABLE.lock().unwrap().clone()
@@ -586,8 +588,6 @@ pub fn run() {
         // Global hotkey (D3): Ctrl+Alt+K toggles the wake lock with no window.
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_shortcuts(["ctrl+alt+k"])
-                .expect("valid shortcut")
                 .with_handler(|app, _shortcut, event| {
                     if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                         set_running(app, !is_running(app));
@@ -612,6 +612,7 @@ pub fn run() {
         }))
         .invoke_handler(tauri::generate_handler![
             ipc::get_status,
+            ipc::hotkey_ok,
             ipc::start,
             ipc::stop,
             ipc::set_run_for,
@@ -657,6 +658,15 @@ pub fn run() {
             }
         })
         .setup(move |app| {
+            // Registered here, not in the plugin builder: another app holding Ctrl+Alt+K made the
+            // builder fail and the whole app panic at launch. Now it only loses the hotkey.
+            {
+                use tauri_plugin_global_shortcut::GlobalShortcutExt;
+                match app.global_shortcut().register("ctrl+alt+k") {
+                    Ok(()) => HOTKEY_OK.store(true, Ordering::SeqCst),
+                    Err(e) => tracing::warn!("Ctrl+Alt+K is taken by another app, so it is off: {e}"),
+                }
+            }
             let icons = tray::Icons::new(
                 app.default_window_icon()
                     .cloned()
