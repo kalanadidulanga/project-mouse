@@ -268,9 +268,10 @@ for questions.
 
 ## Code signing policy
 
-Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
-[SignPath Foundation](https://signpath.org/). *(Applied for. Until it is granted, the installer
-is unsigned and Windows SmartScreen warns on first install: More info > Run anyway.)*
+The installer is not Authenticode-signed yet, so Windows SmartScreen warns on first install:
+More info > Run anyway. [SignPath Foundation](https://signpath.org/) declined the first
+application in October 2026 until the project is more widely used; it will be reapplied for. The
+updates the app installs are always signed (minisign) and checked before they run.
 
 - Committers and reviewers: [kalanadidulanga](https://github.com/kalanadidulanga)
 - Approvers: [kalanadidulanga](https://github.com/kalanadidulanga)

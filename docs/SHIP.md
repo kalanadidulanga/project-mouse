@@ -42,8 +42,9 @@ ROADMAP M5 + UPDATES.md into one runnable list. Items marked **[human]** cannot 
      [code signing policy](../README.md#code-signing-policy) with roles and the privacy statement
      (the update check is the one network request), install/uninstall steps in the README, and a
      release body that describes the app and links the policy.
-   - **[human]** Turn on 2FA for the GitHub account (and later for SignPath), then apply at
-     <https://signpath.org/apply> with the repo URL, the Releases page and the policy link.
+   - ✅ 2FA on the GitHub account. Applied at <https://signpath.org/apply>; **declined
+     2026-10-10** for too little public visibility (stars, forks, contributors, outside
+     mentions). Reapply once the project has those.
    - **After approval**, wire signing into `release.yml` with the organization ID, project and
      policy slugs and a `SIGNPATH_API_TOKEN` secret. Order matters, because the minisign `.sig` must
      cover the final bytes: `tauri build --no-bundle` → sign `project-mouse.exe` →
