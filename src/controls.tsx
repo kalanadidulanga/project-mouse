@@ -122,9 +122,10 @@ export function DaysPicker({ days, onChange }: { days: boolean[]; onChange: (d: 
           type="button"
           className={`chip ${days[i] ? "on" : ""}`}
           aria-pressed={days[i]}
+          aria-label={n}
           onClick={() => onChange(days.map((d, j) => (j === i ? !d : d)))}
         >
-          {n}
+          {n.slice(0, 2)}
         </button>
       ))}
     </div>

@@ -233,18 +233,21 @@ body {
 
 .status.pause .dot { background: var(--pause); border-color: var(--pause); }
 .summary { color: var(--text-2); }
-.btn.time { width: 92px; }
+.btn.time { width: auto; min-width: 92px; } /* fits the 12-hour "10:30 PM" form too */
 
-.days { display: flex; gap: 4px; flex-wrap: wrap; }
+.days { display: flex; gap: 3px; flex-wrap: wrap; }
 .chip {
-  all: unset; box-sizing: border-box; padding: 3px 8px; border-radius: 10px; font-size: 12px;
+  all: unset; box-sizing: border-box; padding: 3px 6px; border-radius: 10px; font-size: 12px;
   border: 1px solid var(--border); color: var(--text-2); cursor: default;
 }
 .chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-.entry { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.entry { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .entry .grow { flex: 1; }
+.entry .btn.time { padding: 6px 8px 6px 10px; }
+/* A row keeps to one line: its switch shows On/Off by colour, and its aria-label says which row. */
+.entry .switch > span:last-child { display: none; }
 .empty { color: var(--text-2); font-size: 13px; padding: 8px 0; }
 .icon-btn { padding: 4px 9px; }
 
