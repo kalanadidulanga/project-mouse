@@ -2,14 +2,14 @@
   "name": "project-mouse",
   "private": true,
   "license": "MIT",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test:e2e": "tauri build --debug --no-bundle && playwright test"
+    "test:e2e": "tauri build --debug --no-bundle --config src-tauri/tauri.e2e.conf.json && playwright test"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

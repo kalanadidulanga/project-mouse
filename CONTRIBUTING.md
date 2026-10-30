@@ -22,7 +22,7 @@ cargo fmt --manifest-path src-tauri/Cargo.toml --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
 npm run build
-npm run test:e2e         # drives the real app; quit any running project-mouse first
+npm run test:e2e         # builds and drives the real app window
 ```
 
 CI runs the same checks on every pull request.

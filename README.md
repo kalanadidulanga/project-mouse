@@ -4,6 +4,11 @@ Moves your mouse a few pixels when your PC has had no input for a while, and kee
 while it runs. Windows, the screen lock and apps that watch for idle time see activity. One
 button: **Start**. Underneath is a wake lock with a rules engine.
 
+<p>
+  <img src="docs/images/home.png" alt="The Home tab: Stopped, a Start button, Run for and the movement summary" width="49%">
+  <img src="docs/images/schedules-dark.png" alt="The Schedules tab in dark mode: work hours, Monday to Friday" width="49%">
+</p>
+
 **Using it:** open the app and press **Start**. *Next move in m:ss* counts down and restarts
 whenever you touch the mouse or keyboard. *Run for* stops it by itself. The tabs on the left
 hold everything else: how it moves, when it pauses, schedules, quiet times and appearance. Close
@@ -132,7 +137,7 @@ CI fails if these regress.
 | UI | React + TypeScript | Loaded only when a window exists |
 | Config | JSON, atomic write | The whole dataset is tens of KB; SQLite would cost ~1 MB of binary for nothing |
 | Logging | `tracing` + rolling file | Off at `debug` by default |
-| Tests | `cargo test` + Playwright | `npm run test:e2e` builds the app and drives its real window over the WebView2 DevTools port (close any running copy first) |
+| Tests | `cargo test` + Playwright | `npm run test:e2e` builds the app and drives its real window over the WebView2 DevTools port (it runs beside an installed copy) |
 
 **The load-bearing idea:** the settings window is open about two minutes a day, so the webview
 is created on demand and **destroyed** on close: never hidden. That single discipline is where

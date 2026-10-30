@@ -1,6 +1,7 @@
 // End-to-end: launches the real app (Rust + WebView2) from a fresh folder and drives its window over
 // the WebView2 DevTools port. Run `npm run test:e2e`; it builds first, so the binary is never stale.
-// Close any running project-mouse first: single-instance would hand the launch to that copy.
+// It is built with its own identifier (src-tauri/tauri.e2e.conf.json), so an installed copy that is
+// running does not swallow the launch.
 import { test, expect, chromium, type Browser, type Page } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
 import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
@@ -18,7 +19,7 @@ test.describe.configure({ mode: "serial" });
 
 async function connect(): Promise<Browser> {
   for (let i = 0; i < 60; i++) {
-    if (app.exitCode !== null) throw new Error("project-mouse exited at launch. Is another copy running?");
+    if (app.exitCode !== null) throw new Error(`project-mouse exited at launch (code ${app.exitCode})`);
     try {
       return await chromium.connectOverCDP(`http://127.0.0.1:${PORT}`);
     } catch {
@@ -97,5 +98,23 @@ test("settings survive a reload", async () => {
   await expect(page.getByLabel("Action for schedule 1")).toHaveValue("Stop");
   await tab("Movement").click();
   await expect(page.getByLabel("Direction", { exact: true })).toHaveValue("Circle");
+  expect(errors).toEqual([]);
+});
+
+test("schedule and blackout rows stay on one line", async () => {
+  await tab("Schedules").click();
+  await page.getByRole("button", { name: /Work hours/ }).click();
+  await tab("Blackouts").click();
+  await page.getByRole("button", { name: /Lunch/ }).click();
+  for (const name of ["Schedules", "Blackouts"]) {
+    await tab(name).click();
+    const wrapped = await page.locator("main .entry").evaluateAll((rows) =>
+      rows.filter((row) => {
+        const mids = [...row.children].map((k) => k.getBoundingClientRect()).filter((r) => r.width).map((r) => r.top + r.height / 2);
+        return Math.max(...mids) - Math.min(...mids) > 12;
+      }).length,
+    );
+    expect(wrapped, `${name} rows that wrapped`).toBe(0);
+  }
   expect(errors).toEqual([]);
 });
