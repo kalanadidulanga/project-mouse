@@ -51,7 +51,9 @@ ROADMAP M5 + UPDATES.md into one runnable list. Items marked **[human]** cannot 
      write `latest.json` → upload to the draft. tauri-action's own signing pass would sign the
      unsigned installer, so it cannot stay as is.
 4. **[human] Tag `vX.Y.Z`** → `release.yml` runs the CI gates, then builds, signs the update
-   artifacts, drafts the GitHub release, and pushes `latest.json` to the cPanel endpoint. Review the
+   artifacts, drafts the GitHub release, and pushes `latest.json` to the cPanel endpoint. The release
+   job waits for your approval (Actions > the run > Review deployments), because it runs in the
+   `release` environment, which holds the signing key and accepts only `v*` tags. Review the
    draft, then publish.
    - If the job fails at *Creating one* with `Resource not accessible by integration` (v1.0.0 did,
      with the same token permissions v0.2.1 had), create the draft yourself and re-run the failed

@@ -9,28 +9,37 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: read
+
 jobs:
   ci:
     uses: ./.github/workflows/ci.yml
 
   release:
     needs: ci
+    # The signing key lives in this environment: only v* tags may use it, and the owner approves
+    # each run (Settings > Environments > release).
+    environment: release
     permissions:
       contents: write
     runs-on: windows-latest
+    env:
+      MANIFEST_TOKEN: ${{ secrets.MANIFEST_TOKEN }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-          cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: "./src-tauri -> target"
+          package-manager-cache: false
+      # No npm or cargo cache here: the signed build starts clean, so a poisoned cache from
+      # another run cannot reach an installer.
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
 
       - run: npm ci
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -45,12 +54,15 @@ jobs:
           prerelease: false
 
       # Push the update manifest to the own-domain endpoint (GitHub is the fallback).
+      # A step's own env is not visible to its if, so the token is set on the job. tauri-action
+      # uploads latest.json to the release only, so it is fetched from there first.
       - name: Publish update manifest
         if: ${{ env.MANIFEST_TOKEN != '' }}
-        env:
-          MANIFEST_TOKEN: ${{ secrets.MANIFEST_TOKEN }}
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          gh release download "${GITHUB_REF_NAME}" --pattern latest.json --clobber
           curl -f -X POST "https://kalanadidulanga.com/project-mouse/update/publish.php" \
                -H "Authorization: Bearer ${MANIFEST_TOKEN}" \
                -H "Content-Type: application/json" \

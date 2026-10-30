@@ -2,6 +2,9 @@
 
 Thanks for helping. Issues, ideas and pull requests are all welcome.
 
+You can expect a first reply on an issue or pull request within 48 hours. To take an issue,
+comment on it, and it is yours. Security problems go through [SECURITY.md](SECURITY.md), not issues.
+
 ## Build and run
 
 You need Windows 10 or 11, [Rust](https://rustup.rs/) (stable), [Node.js](https://nodejs.org/) 22
