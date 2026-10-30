@@ -24,7 +24,7 @@ tracing-appender = "0.2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
-tauri-plugin-updater = "2"
+tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls", "system-proxy"] }
 tauri-plugin-notification = "2"
 
 [target.'cfg(windows)'.dependencies.windows]
