@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.0.1
+
+### Fixed
+- **It no longer fails to start when another app already uses Ctrl+Alt+K.** It used to stop at
+  launch with no window and no tray icon. Now it starts without the hotkey, and Behaviour says
+  that Ctrl+Alt+K is off.
+- The time box on Home (*Run for: Until a time*) cut off "10:30 PM" when Windows uses 12-hour
+  time. Schedule and blackout rows now stay on one line, with two-letter day names.
+
+### Changed
+- `npm run test:e2e` builds with its own identifier, so it runs beside an installed copy, and
+  checks that schedule and blackout rows stay on one line.
+
 ## v1.0.0
 
 project-mouse is now something you can see. v0.2.1 opened no window on a normal launch, so all

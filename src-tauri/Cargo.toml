@@ -1,6 +1,6 @@
 [package]
 name = "project-mouse"
-version = "1.0.0"
+version = "1.0.1"
 description = "A task-bound wake lock for Windows"
 authors = ["Kalana"]
 license = "MIT"
