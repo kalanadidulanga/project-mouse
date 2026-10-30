@@ -255,6 +255,12 @@ Read in this order.
 
 Interactive UI mockup: https://claude.ai/code/artifact/9551d990-b62a-463f-9937-34bbd7eecf4c
 
+## Contributing
+
+Issues, ideas and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) for how
+to build and test, and [Discussions](https://github.com/kalanadidulanga/project-mouse/discussions)
+for questions.
+
 ## Code signing policy
 
 Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
