@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.0.2
+
+### Changed
+- Dependency updates (Tauri plugins, rustls, Vite and others). The updater no longer pulls in
+  a zip library: updates are the installer itself, so that code was never used, and dropping it
+  clears its security advisories.
+- The release pipeline is locked down: the update signing key is only available to approved
+  release runs.
+
 ## v1.0.1
 
 ### Fixed
